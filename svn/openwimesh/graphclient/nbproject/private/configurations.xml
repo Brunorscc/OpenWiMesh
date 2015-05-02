@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="89">
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Debug" type="1">
+      <toolsSet>
+        <developmentServer>localhost</developmentServer>
+        <platform>2</platform>
+      </toolsSet>
+      <dbx_gdbdebugger version="1">
+        <gdb_pathmaps>
+        </gdb_pathmaps>
+        <gdb_interceptlist>
+          <gdbinterceptoptions gdb_all="false" gdb_unhandled="true" gdb_unexpected="true"/>
+        </gdb_interceptlist>
+        <gdb_options>
+          <DebugOptions>
+          </DebugOptions>
+        </gdb_options>
+        <gdb_buildfirst gdb_buildfirst_overriden="false" gdb_buildfirst_old="false"/>
+      </dbx_gdbdebugger>
+      <nativedebugger version="1">
+        <engine>gdb</engine>
+      </nativedebugger>
+      <runprofile version="9">
+        <runcommandpicklist>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 127.0.0.1:2222</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 192.168.199.254:1111</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 192.168.199.254</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 192.168.199.254</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111 -arp</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111 -ar</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111 </runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111 -b br0</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111 -b br0 -arp -E</runcommandpicklistitem>
+        </runcommandpicklist>
+        <runcommand>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:1111 -b br0 -arp -E</runcommand>
+        <rundir></rundir>
+        <buildfirst>true</buildfirst>
+        <terminal-type>0</terminal-type>
+        <remove-instrumentation>0</remove-instrumentation>
+        <environment>
+        </environment>
+      </runprofile>
+    </conf>
+    <conf name="Release" type="1">
+      <toolsSet>
+        <developmentServer>localhost</developmentServer>
+        <platform>2</platform>
+      </toolsSet>
+      <dbx_gdbdebugger version="1">
+        <gdb_pathmaps>
+        </gdb_pathmaps>
+        <gdb_interceptlist>
+          <gdbinterceptoptions gdb_all="false" gdb_unhandled="true" gdb_unexpected="true"/>
+        </gdb_interceptlist>
+        <gdb_options>
+          <DebugOptions>
+          </DebugOptions>
+        </gdb_options>
+        <gdb_buildfirst gdb_buildfirst_overriden="false" gdb_buildfirst_old="false"/>
+      </dbx_gdbdebugger>
+      <nativedebugger version="1">
+        <engine>gdb</engine>
+      </nativedebugger>
+      <runprofile version="9">
+        <runcommandpicklist>
+          <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 192.168.25.10</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 127.0.0.1</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 127.0.0.1 -brN eth4</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 127.0.0.1:2222 -brN eth3</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -wifn wlan0 -ofc 127.0.0.1:2222 -brN lo0</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:2222</runcommandpicklistitem>
+        </runcommandpicklist>
+        <runcommand>"${OUTPUT_PATH}" -w wlan0:15 -o 127.0.0.1:2222</runcommand>
+        <rundir></rundir>
+        <buildfirst>true</buildfirst>
+        <terminal-type>0</terminal-type>
+        <remove-instrumentation>0</remove-instrumentation>
+        <environment>
+        </environment>
+      </runprofile>
+    </conf>
+  </confs>
+</configurationDescriptor>

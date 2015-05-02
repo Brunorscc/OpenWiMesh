@@ -1,0 +1,12 @@
+- GraphClient can be compiled using both its "Netbeans" project (./nbproject dir)
+and its "Qt Creator" project (GraphClient.pro file and .pro.user file, 
+both used by qmake).
+- The Makefile in the root path is a file produced by Netbeans. To compile 
+using the Netbeans project by the command line just run
+> make 		# from root path.
+
+- To compile using Qt Creator project just run:
+#(optional, just if any project modification or graphics interface files modifications)
+> qmake GraphClient.pro -r -spec linux-g++-64 
+> cd ../qt-Release #(or "../qt-Debug")
+> make
