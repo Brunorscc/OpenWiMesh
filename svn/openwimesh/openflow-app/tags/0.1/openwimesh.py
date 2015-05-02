@@ -1,0 +1,870 @@
+"""
+   OpenWiMesh - Framework for Software Defined Wireless Mesh Networks
+   Copyright (C) 2013-2014  GRADE - http://grade.dcc.ufba.br
+
+   This file is part of OpenWiMesh.
+
+   OpenWiMesh is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   OpenWiMesh is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with OpenWiMesh.  If not, see <http://www.gnu.org/licenses/>.
+
+   Linking this library statically or dynamically with other modules is
+   making a combined work based on this library.  Thus, the terms and
+   conditions of the GNU Affero General Public License cover the whole
+   combination.
+
+   As a special exception, the copyright holders of this library give you
+   permission to link this library with independent modules to produce an
+   executable, regardless of the license terms of these independent
+   modules, and to copy and distribute the resulting executable under
+   terms of your choice, provided that you also meet, for each linked
+   independent module, the terms and conditions of the license of that
+   module.  An independent module is a module which is not derived from
+   or based on this library.  If you modify this library, you may extend
+   this exception to your version of the library, but you are not
+   obligated to do so.  If you do not wish to do so, delete this
+   exception statement from your version.
+"""
+
+from pox.core import core
+import pox.openflow.libopenflow_01 as of
+from pox.lib.revent import *
+from pox.lib.util import dpidToStr
+from pox.lib.util import str_to_bool
+from pox.lib.addresses import IPAddr, EthAddr
+import pox.lib.packet as packet
+from pox.lib.recoco import Timer
+import time
+import thread
+import re
+from net_graph import NetGraph
+from acl import ACL
+from networkx import draw_networkx_nodes
+from networkx import draw_networkx_edges
+from networkx import draw_networkx_labels
+from networkx import draw_networkx_edge_labels
+from networkx import circular_layout as layout
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+log = core.getLogger()
+
+# time between arp-resquests that we don't reply again
+ARP_REQ_DELAY=10
+
+def handle_PacketIn_Function (self, event):
+        """
+        Handles packet in messages from some switch
+        """
+        ether_pkt = event.parse()
+        dpid = dpidToStr(event.dpid)
+
+        sw_mac = self.net_graph.get_by_attr('dpid', dpid)
+        if sw_mac is None:
+            log.debug("INVALID-DPID: %s" % (dpid))
+        #    self.net_graph.print_nodes(info=dpid)
+        #else:
+        #    log.debug("VALID-DPID: %s" % (dpid))
+
+        # Check blacklist
+        if not self.acl.is_allowed(receiver=sw_mac, sender=str(ether_pkt.src)):
+            #TODO: add flow to drop packets
+            log.debug("BLACKLIST: in %s src %s dst %s type %s" %
+                (sw_mac, ether_pkt.src, ether_pkt.dst, ether_pkt.type))
+            return
+
+        # Acts as a learning switch, using source address and port to
+        # update address/port table of that switch
+        if sw_mac in self.net_graph:
+            self.net_graph.node[sw_mac]['fdb'][str(ether_pkt.src)] = event.port
+
+        # avoid handle packets that are not broadcast and are not to the switch which sent the "packet-in"
+        # (interfaces in promiscuous mode will receive these messages)
+        if event.port != of.OFPP_LOCAL and ether_pkt.dst != EthAddr(sw_mac) and ether_pkt.dst != EthAddr('ff:ff:ff:ff:ff:ff'):
+            ipsrc = 'None'
+            ipdst = 'None'
+            protoip = 'None'
+            ip = ether_pkt.find('ipv4')
+            if ip is not None:
+                ipsrc = str(ip.srcip)
+                ipdst = str(ip.dstip)
+                protoip = ip.protocol
+            log.debug("Dropping packet that may cause a loop, received in %s (macsrc=%s macdst=%s ipsrc=%s ipdst=%s prot=%s)" % (dpid, ether_pkt.src, ether_pkt.dst,ipsrc, ipdst, protoip))
+            self._drop(event, idle_timeout=300, hard_timeout=600)
+            self._drop_all(event, idle_timeout=0, hard_timeout=0)
+            return
+
+        ## try to update ip addr of node the node
+        #if event.port == of.OFPP_IN_PORT and ether_pkt.find('ipv4'):
+        #    ip = ether_pkt.find('ipv4')
+        #    log.debug("=====>>>>>> Set IP-addr of node %s => %s" % (sw_mac, ip.src))
+        #    #self.net_graph.set_node_ip(sw_mac, ip.src)
+
+        if ether_pkt.type == packet.ethernet.ARP_TYPE:
+            arp_pkt = ether_pkt.payload
+            if arp_pkt.opcode == packet.arp.REQUEST:
+                self._handle_arp_req(event, arp_pkt)
+            elif arp_pkt.opcode == packet.arp.REPLY:
+                # TODO: what should we do?
+                log.debug("Packet-In of an ARP-Reply: [%s -> %s] %s is at %s" %
+                        (ether_pkt.src, ether_pkt.dst, arp_pkt.protodst,
+                            arp_pkt.hwdst))
+                self._drop(event)
+            else:
+                self._drop(event)
+        elif ether_pkt.type == packet.ethernet.IP_TYPE:
+            ip_pkt = ether_pkt.find('ipv4')
+            if ip_pkt.protocol == packet.ipv4.UDP_PROTOCOL:
+                udp = ip_pkt.find('udp')
+                if udp.dstport == 1111:
+                    # Format: Interface | Mac Associado | sinal em dBm | Traffic Bytes | Tx speed | SINR speed
+                    # record separator: ;
+                    # Example: wlan0|00:1c:bf:7c:4b:10|-78|134539566|36.0|12.0
+                    pattern = "(\w+)\|([^|]+)\|([\d-]+)\|(\d+)\|([\d\.]+)\|([\d\.]+)"
+                    assoc_list = []
+                    if not udp.payload:
+                        log.debug("WARNING: null packet 1111/UDP (graphClient")
+                        self._drop(event)
+                        return
+                    for s in udp.payload.split(';'):
+                        result = re.match(pattern, s)
+                        if result:
+                            assoc_list.append(result.groups())
+                        else:
+                            log.debug("WARNING: malformed packet 1111/UDP (graphClient)")
+                    if len(assoc_list) > 0:
+                        sw = self.net_graph.get_by_attr('dpid', dpidToStr(event.dpid))
+                        assoc_list = [node for node in assoc_list
+                                        if self.acl.is_allowed(sw, node[1])]
+			if not self.net_graph.get_node_edges_update_state(sw):
+			    self.ini_topology_up_count += 1
+                            log.debug("Topology UP from %s (%s) - time from startup: %.0f" % (sw, self.ini_topology_up_count, time.time() - self.startup_time))
+				
+                        self.net_graph.update_edges_of_node(sw, assoc_list)
+                        log.debug("Update graph from graphClient() in %s: %s" %
+                                (sw, assoc_list))
+                else:
+                    self._handle_tcp_udp(event, ip_pkt)
+            elif ip_pkt.protocol == packet.ipv4.TCP_PROTOCOL:
+                tcp = ip_pkt.find('tcp')
+                if tcp.dstport == 6633:
+                    # TODO: rule expired on communication node to controller
+                    pass
+                elif tcp.srcport == 6633:
+                    # TODO: rule expired on communication controller to node
+                    pass
+                else:
+                    self._handle_tcp_udp(event, ip_pkt)
+            elif ip_pkt.protocol == packet.ipv4.ICMP_PROTOCOL:
+                self._handle_icmp(event, ip_pkt)
+            else:
+                log.debug("Unknow IP protocol %s" % (ip_pkt.protocol))
+                self._drop(event)
+        else:
+            log.debug("Unknow packet type[%s -> %s] ethertype: %s" %
+                    (ether_pkt.src, ether_pkt.dst, ether_pkt.type))
+
+   
+class PathHandler():
+    def __init__(self):
+        self.paths = {}
+
+    def match2index(self, match):
+        if 'nw_src' not in match or 'nw_dst' not in match:
+            return None
+        return "%s-%s" % (match['nw_src'],match['nw_dst'])
+
+    # TODO: delele expired paths...
+    def add(self, match, path):
+        index = self.match2index(match)
+        if index is None:
+            return
+        self.paths[index] = {'match' : match, 'path' : path}
+
+    def __contains__(self, match):
+        index = self.match2index(match)
+        return index in self.paths
+
+    def show(self, sep='\n'):
+        outstr = ''
+        for k in self.paths:
+            outstr += 'Match: ' + str(self.paths[k]['match']) + '; '
+            outstr += 'Path: ' + str(self.paths[k]['path'])
+            outstr += sep
+        return outstr
+
+
+class openwimesh (EventMixin):
+    netgraph = None
+    show_graph_time_stamp = 0
+    show_graph_node_count = 0
+    show_layout = None
+    show_ani = None
+
+    @classmethod
+    def who_is_globalctl(cls):
+       print "The global controller is %s %s " % ( openwimesh.netgraph.get_ofctlglobal_ipaddr(), openwimesh.netgraph.get_ofctlglobal_hwaddr() )
+
+    @classmethod
+    def show_graph(cls, attr='weight', node_attr='name', title='Wireless Mesh Network'): # attr is the name of edge attribute
+        figure = plt.figure()
+        plt.ion()
+
+        def update_image(cls):
+            log.debug("Show Graph: Updating image")
+
+            if openwimesh.netgraph:
+                if openwimesh.show_graph_time_stamp < openwimesh.netgraph.time_stamp:
+                    plt.clf() # clear old image
+                    plt.title(title) # reinsert title
+
+                    if openwimesh.show_graph_node_count != openwimesh.netgraph.number_of_nodes():
+                        log.debug("Show Graph:  Calc New Layout")
+                        # generate new layout for graph
+                        openwimesh.show_layout = layout(openwimesh.netgraph)
+                        openwimesh.show_graph_node_count = openwimesh.netgraph.number_of_nodes()
+
+                    log.debug("Show Graph:  New Time Stamp: " + str(openwimesh.netgraph.time_stamp))
+                    openwimesh.show_graph_time_stamp = openwimesh.netgraph.time_stamp 
+                    # draw nodes
+                    draw_networkx_nodes(openwimesh.netgraph,openwimesh.show_layout,node_size=1500)
+                    # draw edges
+                    draw_networkx_edges(openwimesh.netgraph,openwimesh.show_layout)
+                    # getting node labels
+                    labels = dict([(node,node_attributes[node_attr]) for
+                        node,node_attributes in openwimesh.netgraph.nodes(data=True)])
+                    # draw node labels
+                    draw_networkx_labels(openwimesh.netgraph,openwimesh.show_layout,labels=labels)
+                    # getting edges labels
+                    labels=dict([((source,target), edges_attributes[attr]) for
+                        source,target,edges_attributes in
+                        openwimesh.netgraph.edges(data=True)])
+                    # draw edges labels
+                    draw_networkx_edge_labels(openwimesh.netgraph,openwimesh.show_layout,
+                            edge_labels=labels,label_pos=0.18)
+
+        openwimesh.show_ani = animation.FuncAnimation(figure, update_image,
+                blit=False, interval=10000)
+        plt.title(title) # insert title
+        plt.show()
+
+    @classmethod
+    def list_connected(cls):
+        if not openwimesh.netgraph:
+            return
+        log.debug("Nos conectados:")
+        g = openwimesh.netgraph
+        for n in g.nodes():
+            if g.node[n]['conn'] is not None and not g.node[n]['conn'].disconnected:
+                log.debug("  %s -> %s" % (n, g.node[n]['ip']))
+
+
+    def __init__ (self, ofmac, ofip, algorithm):
+        self.listenTo(core.openflow)
+
+        # create the graph
+        self.net_graph = NetGraph()
+        openwimesh.netgraph = self.net_graph
+
+        # array of directly connected nodes, each element
+        # of the array is the datapath-id of the node
+        self.directly_connected_nodes = []
+
+        # The first node of the graph is the own global controller
+        self.net_graph.add_ofctlglobal(ofmac, ofip)
+
+        # dictionary of nodes trying to connect to the controller,
+        # in the form:
+        #    connecting_nodes[MAC] = IP
+        self.connecting_nodes = {}
+
+        # list of arp-request replied in a short period of time, to avoid
+        # repling duplicated requests
+        self.replied_arp_req = {}
+
+        # access control list
+        self.acl = ACL()
+
+        # keep track of installed paths (i.e. openflow rules along the graph for a
+        # given application)
+        #self.ph = PathHandler()
+
+        # startup time
+        self.startup_time = time.time()
+        
+	# topology update initial event counter
+        self.ini_topology_up_count = 0
+        
+        # thread counting variable
+        self.thread_count = 0
+        
+        # variable used to track a bug. TEMPORARY!!!
+        self.not_in_graph = []
+        
+        # Set the weigth selection algorithm
+        self.net_graph.set_ofctl_weight_selection_algorithm(algorithm)
+
+    #########################################################
+    # Drop the specific packet from informed event
+    #
+    #########################################################
+    def _drop (self, event, idle_timeout=5, hard_timeout=15):
+        packet = event.parsed
+        sw = self.net_graph.get_by_attr('dpid', dpidToStr(event.dpid))
+
+        # installing flow entry in sw table
+        log.debug("Installing flow to drop packet from %s", dpidToStr(event.dpid))
+        msg = of.ofp_flow_mod()
+        msg.match = of.ofp_match.from_packet(packet)
+        msg.idle_timeout = idle_timeout # delete entry without traffic after 5s
+        msg.hard_timeout = hard_timeout # delete entry in 15s
+        msg.buffer_id = event.ofp.buffer_id
+        try:
+            self.net_graph.node[sw]['conn'].send(msg)
+        except:
+            log.debug("Error installing entry in %s for packet from %s",
+                    sw, dpidToStr(event.dpid))    
+
+
+    #########################################################
+    # Drop all packets with the same dl_dst (destination mac) from event
+    #
+    #########################################################
+    def _drop_all (self, event, idle_timeout=5, hard_timeout=15):
+        packet = event.parsed
+        sw = self.net_graph.get_by_attr('dpid', dpidToStr(event.dpid))
+
+        # installing flow entry in sw table
+        log.debug("Installing flow to drop ALL packets received by %s, but destined to %s", dpidToStr(event.dpid), packet.dst)
+        msg = of.ofp_flow_mod()
+        msg.match.dl_dst = packet.dst
+        msg.actions.append(of.ofp_action_output(port=of.OFPP_NONE))
+        msg.idle_timeout = idle_timeout # delete entry without traffic after 5s
+        msg.hard_timeout = hard_timeout # delete entry in 15s
+        try:
+            self.net_graph.node[sw]['conn'].send(msg)
+        except:
+            log.debug("Error installing entry in %s for packet from %s",
+                    sw, dpidToStr(event.dpid))    
+
+    #########################################################
+    # _get_connecting_node_by_ip (ipaddr)
+    #   - ipaddr: ip address of the node who is connecting
+    #
+    # This function searches in connecting_nodes list for a
+    # node with ip address 'ipaddr' and returns the ethernet
+    # address of that node. If the node isn't found, it returns
+    # None.
+    #########################################################
+    def _get_connecting_node_by_ip(self, ipaddr):
+        if type(ipaddr) is not str:
+            ipaddr = str(ipaddr)
+        for k,v in self.connecting_nodes.iteritems():
+            if v == ipaddr:
+                return k
+        return None
+
+    #########################################################
+    # _get_out_port(node, in_port, dl_dst)
+    #
+    # This function returns the output port in 'node' (MAC), which
+    # should be used to forward a packet coming in 'in_port' to 'dl_dst'.
+    #
+    #########################################################
+    def _get_out_port(self, node, in_port, dl_dst):
+        if type(node) is not str:
+            node = str(node)
+        if type(dl_dst) is not str:
+            dl_dst = str(dl_dst)
+        
+        # define the output port
+        if dl_dst == node:
+            return [of.OFPP_LOCAL]
+        else:
+            out_port = self.net_graph.get_out_port_no(node, dl_dst)
+            if out_port is None or in_port is None: 
+                # we dont known how to forward, so send to all ports
+                return [of.OFPP_IN_PORT, of.OFPP_ALL]
+            elif out_port == in_port:
+                return [of.OFPP_IN_PORT]
+            else:
+                return [out_port]
+
+    # ARP-Reply: target_ip is at target_sw.mac
+    def _send_arp_reply(self, target_sw, target_ip, in_port, requester_ip,
+            requester_hw):
+        sw = self.net_graph.node[target_sw]
+        # create the arp packet
+        r = packet.arp()
+        r.opcode = packet.arp.REPLY
+        r.hwsrc = EthAddr(target_sw)
+
+        if type(target_ip) is str:
+            target_ip = IPAddr(target_ip)
+        r.protosrc = target_ip
+
+        if type(requester_ip) is str:
+            requester_ip = IPAddr(requester_ip)
+        r.protodst = requester_ip
+
+        if type(requester_hw) is str:
+            requester_hw = EthAddr(requester_hw)
+        r.hwdst = requester_hw
+
+        # create the ethernet packet
+        e = packet.ethernet()
+        e.type = packet.ethernet.ARP_TYPE
+        e.src = r.hwsrc
+        e.dst = r.hwdst
+        e.payload = r
+
+        # now we send the packet back to arp requestor
+        msg = of.ofp_packet_out()
+        msg.data = e.pack()
+        msg.actions.append(of.ofp_action_output(port = of.OFPP_IN_PORT))
+        msg.in_port = in_port
+        conn = sw.get('conn', None)
+        if conn:
+            conn.send(msg)
+            log.debug("Sending ARP-Reply [%s -> %s]: %s is at %s", e.src,
+                    e.dst, r.protosrc, r.hwsrc)
+
+    #########################################################
+    # _install_flow_entry (switch, match_fields, actions)
+    #
+    # - sw_id: Identifier of the openflow switch (MAC) where the role
+    #      will be installed in.
+    # - match_fields: a dictionary of the fields to match.
+    #      Example: {
+    #           'nw_dst' : '1.1.1.2',
+    #           'nw_dst' : '2.1.3.1',
+    #           'nw_proto' : '6',       # TCP
+    #           'tp_dst' : '6633' }
+    # - actions: a ordered list of actions
+    #     Example: [
+    #           ['set_dl_dst', '00:00:00:00:00:01'],
+    #           ['output', '1']         # output port
+    #       ]
+    #########################################################
+    def _install_flow_entry(self, sw_id, match_fields, actions, buffer_id = None):
+        status_code = True
+        status_msg  = ""
+        msg = of.ofp_flow_mod()
+
+        try:
+            msg.match = of.ofp_match(**match_fields)
+        except TypeError as e:
+            status_msg += "Invalid match field:" + str(e) + "\n"
+            status_code = False
+        except:
+            status_msg += "Unexpected error: " + sys.exc_info()[0]
+            status_code = False
+
+        for action in actions:
+            (k, v) = action
+            if k.startswith('output'):
+                msg.actions.append(of.ofp_action_output(port = v))
+            elif k == 'set_vlan_vid':
+                msg.actions.append(of.ofp_action_output(vlan_vid = v))
+            elif k == 'set_dl_src':
+                msg.actions.append(of.ofp_action_dl_addr.set_src(dl_addr = v))
+            elif k == 'set_dl_dst':
+                msg.actions.append(of.ofp_action_dl_addr.set_dst(dl_addr = v))
+            elif k == 'set_nw_src':
+                msg.actions.append(of.ofp_action_nw_addr.set_src(nw_addr = v))
+            elif k == 'set_nw_dst':
+                msg.actions.append(of.ofp_action_nw_addr.set_dst(nw_addr = v))
+            elif k == 'set_tp_src':
+                msg.actions.append(of.ofp_action_tp_port.set_src(tp_port = v))
+            elif k == 'set_tp_dst':
+                msg.actions.append(of.ofp_action_tp_port.set_dst(tp_port = v))
+            else:
+                status_msg += "Unknow action: " + k + "\n"
+                status_code = False
+
+        if not status_code:
+            return (status_code, status_msg)
+
+        # TODO: how many time this role will be valid?
+        # For now, it will be forever
+        msg.idle_timeout = 20
+        msg.hard_timeout = 0
+
+        switch = self.net_graph.node.get(sw_id, None)
+        if switch is None:
+            return (False, "Invalid switch " + sw_id)
+
+        if buffer_id:
+            msg.buffer_id = buffer_id
+
+        try:
+            conn = switch['conn']
+            conn.send(msg)
+        except:
+            return (False, "Unexpected error: " + sys.exc_info()[0])
+
+        return (True, "")
+
+    def _install_path(self, event, src_ip, dst_ip, match_fields, fwd_buffered_pkt = False):
+        log.debug("_install_path called")
+        #log.debug("Current installed paths:\n%s", self.ph.show())
+
+        path = self.net_graph.path(src_ip, dst_ip)
+        log.debug("Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
+            dst_ip, match_fields))
+        if len(path) == 0:
+            log.debug("Dropping empty path from %s to %s", src_ip, dst_ip)
+            self._drop(event)
+            return
+
+        # Sanity check: a disconnected or unknown node cannot be in the middle
+        # of the path, because it will not forward traffic as we expect. It is
+        # only allowed to be on the begin or end of the path (actually it is
+        # connecting)
+        for sw in path[1:-1]:
+            if self.net_graph.node[sw].get('conn', None) is None or \
+                    self.net_graph.node[sw]['conn'].disconnected:
+                log.debug("WARNING: Path contains a non-connected node %s. "
+                        "Dropping path." % (sw))
+                self._drop(event)
+                return
+
+        #log.debug("Edges: %s", str(self.net_graph.edges(data=True)))
+        #log.debug("Graph: %s", str(self.net_graph.nodes(data=True)))
+
+        #self.ph.add(match_fields, path)
+        
+        for i,sw in enumerate(path):
+        #for i in range(len(path)-1, -1, -1):
+            #sw = path[i]
+            new_src_hw = sw
+            buffer_id = None
+
+            # the node must have a connection to the controller if we want to
+            # install a path
+            if not self.net_graph.node[sw].get('conn', None):
+                log.debug("WARNING: install_path - ignoring switch %s", sw)
+                continue
+
+            if i + 1 == len(path): # sw.next == NULL
+                new_dst_hw = path[i]
+            else:
+                new_dst_hw = path[i+1]
+
+            # define the input port
+            if i == 0: # sw.prev == NULL
+                in_port = event.port
+                if fwd_buffered_pkt:
+                    buffer_id = event.ofp.buffer_id
+            else:
+                prev_sw = path[i-1]
+                in_port = self.net_graph.node[sw]['fdb'].get(prev_sw, None)
+
+            actions = [['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
+            # set the output port
+            out_port = self._get_out_port(sw, in_port, new_dst_hw)
+            for i,p in enumerate(out_port):
+                actions.append(['output'+str(i), p])
+
+            # set an match field in order to avoid receive packets that are not
+            # destinated to the node (e.g. in nodes that operates in
+            # promiscouos mode)
+            if in_port != of.OFPP_LOCAL:
+                match_fields['dl_dst'] = EthAddr(new_src_hw)
+
+            (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id)
+            if not status:
+                log.debug("Error installing flow in %s: %s", sw, msg)
+
+    def _handle_arp_req(self, event, arp_pkt):
+        orig_src_hw = str(arp_pkt.hwsrc)
+        orig_src_ip = str(arp_pkt.protosrc)
+        dst_node_ip = str(arp_pkt.protodst)
+
+        # recv_node_hw: host who generated the packetin to controller
+        dpid = dpidToStr(event.dpid)
+        recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
+        if not recv_node_hw:
+            log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
+            self._drop(event)
+            return
+        recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
+
+        dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
+        if not dst_node_hw:
+            log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
+            self._drop(event)
+            self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
+            self.not_in_graph.append(dst_node_ip)
+            return
+
+        # Received an ARP request from a node, then add an edge between these
+        # nodes
+        if orig_src_hw not in self.net_graph.nodes():
+            self.net_graph.add_node(orig_src_hw, orig_src_ip)
+            
+            # Debugging code ...
+            #log.debug("Added new node: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
+            if orig_src_ip in self.not_in_graph:
+                log.debug("Added a node which previously was not found: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
+            node = self.net_graph.get_by_attr('ip', orig_src_ip)
+            node_ip = self.net_graph.get_node_ip(node)
+            if not node or not node_ip:
+                log.debug("Failed adding new node: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
+            # End of debugging code!
+            
+        if recv_node_hw != orig_src_hw and recv_node_hw not in self.net_graph.edge[orig_src_hw]:
+            # add an edge with big weight, trying to exclude this edge from any
+            # path
+            self.net_graph.add_edge(orig_src_hw, recv_node_hw,
+                    weight=10*NetGraph.DEFAULT_WEIGHT)
+            # As we have an digraph, we supose to have communication from
+            # recv_node to orig_src, and add a temporary edge:
+            self.net_graph.add_edge(recv_node_hw, orig_src_hw,
+                    weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
+
+        self.net_graph.print_nodes_backup()
+        arp_req_msg = "who-has-%s-tell-%s" % (dst_node_ip, orig_src_ip)
+        log.debug("ARP-Request received in %s [%s -> %s]: %s", dpid,
+                orig_src_hw, str(arp_pkt.hwdst), arp_req_msg)
+
+        ## ARP-Request timer
+        #
+        # We can receive a lot of arp-request from a new node in our switches
+        # already connected. The requests can be received on a same already
+        # connected switch or even in other switches. In order to handle this
+        # issue, we keep a list of replied arp-requests in a period of time.
+        #
+        if arp_req_msg in self.replied_arp_req:
+            delay = time.time() - self.replied_arp_req[arp_req_msg]['time']
+            if delay < ARP_REQ_DELAY:
+                log.debug("  -> Ignoring ARP-Request replied in %d seconds"
+                        " ago by %s" % (delay,
+                            self.replied_arp_req[arp_req_msg]['responser']))
+                self._drop(event)
+                return
+
+        # If this is not a connection with the controller, we just use the
+        # receiving node as entry point of our network and we use that node as
+        # the Ethernet first hop of the communication
+        ofctlglobal_ip = self.net_graph.get_ofctlglobal_ipaddr()
+        if dst_node_ip != ofctlglobal_ip and orig_src_ip != ofctlglobal_ip:
+            log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
+            self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
+                    orig_src_hw)
+            # Update the list of replied ARP-Requests
+            self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
+                    'time' : time.time()}
+            self._drop(event)
+            return
+
+        # check if the node is trying to talk with the controller
+        if dst_node_ip == ofctlglobal_ip:
+            # if the node who generated the packetin to controller is itself
+            # the controller, then the node is directly connected
+            if recv_node_hw == self.net_graph.get_ofctlglobal_hwaddr():
+                self.directly_connected_nodes.append(orig_src_hw)
+
+            # Now we save some information about the node that is trying to
+            # connect
+            self.connecting_nodes[orig_src_hw] = orig_src_ip
+
+        match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
+                'nw_src' : orig_src_ip,
+                'nw_dst' : dst_node_ip,
+                'nw_proto' : packet.ipv4.TCP_PROTOCOL}
+
+        if dst_node_ip == ofctlglobal_ip:
+            match_fields['tp_dst'] = 6633
+        elif orig_src_ip == ofctlglobal_ip:
+            match_fields['tp_src'] = 6633
+
+        self._install_path(event, recv_node_ip, dst_node_ip, match_fields)
+
+        # After installing the paths, send the arp-reply related to this arp-request
+        self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
+                orig_src_hw)
+        
+        # Update the list of replied ARP-Requests
+        self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
+                'time' : time.time()}
+
+        # XXX: after setting up the path and replying the arp-request
+        # we can discard the original arp-req
+        log.debug("DEBUG: drop after all")
+        self._drop(event)
+
+    def _handle_tcp_udp(self, event, ip_pkt):
+        nw_src = str(ip_pkt.srcip)
+        nw_dst = str(ip_pkt.dstip)
+        tp_src = ip_pkt.next.srcport
+        tp_dst = ip_pkt.next.dstport
+
+        # recv_node_hw: host who generated the packetin
+        dpid = dpidToStr(event.dpid)
+        recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
+        if not recv_node_hw:
+            log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
+            self._drop(event)
+            return
+        recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
+
+        match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
+                'nw_src' : nw_src,
+                'nw_dst' : nw_dst,
+                'nw_proto' : ip_pkt.protocol,
+                'tp_src' : tp_src,
+                'tp_dst' : tp_dst}
+
+        self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
+
+    def _handle_icmp(self, event, ip_pkt):
+        nw_src = str(ip_pkt.srcip)
+        nw_dst = str(ip_pkt.dstip)
+        icmp_type = ip_pkt.next.type
+        icmp_code = ip_pkt.next.code
+
+        # recv_node_hw: host who generated the packetin
+        dpid = dpidToStr(event.dpid)
+        recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
+        if not recv_node_hw:
+            log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
+            self._drop(event)
+            return
+        recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
+
+        match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
+                'nw_src' : nw_src,
+                'nw_dst' : nw_dst,
+                'nw_proto' : ip_pkt.protocol,
+                'tp_src' : icmp_type,
+                'tp_dst' : icmp_code}
+
+        self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
+
+
+    def _handle_ConnectionUp (self, event):
+        """
+        Handles a switch that has established a connection to the controller
+        """
+        log.debug("Connection UP from %02d (%s) - time from startup: %.0f" % (event.dpid, event.connection, time.time() - self.startup_time))
+        sw_hw_addr = None
+        sw_ip_addr = None
+
+        ports = []
+        for p in event.ofp.ports:
+            if p.port_no == of.OFPP_LOCAL:
+                sw_hw_addr = str(p.hw_addr)
+            else:
+                ports.append({'port_no' : p.port_no,
+                    'hw_addr' : str(p.hw_addr),
+                    'name' : p.name})
+
+        attrs = {}
+        attrs['ports'] = ports
+        attrs['dpid'] = dpidToStr(event.dpid)
+        attrs['conn'] = event.connection
+
+        directly_connected = False
+        if sw_hw_addr in self.directly_connected_nodes:
+            directly_connected = True
+
+        attrs['ip'] = event.connection.sock.getpeername()[0]
+        # TODO: the bellow code is no more needed
+        if sw_hw_addr in self.connecting_nodes:
+            # once the node is now connected,
+            # it should be removed from connecting list
+            del self.connecting_nodes[sw_hw_addr]
+
+        self.net_graph.add_node(sw_hw_addr, **attrs)
+
+        if directly_connected:
+            ofctlglobal_hw_addr = self.net_graph.get_ofctlglobal_hwaddr()
+            log.debug("INFO: adding edge %s <-> %s", ofctlglobal_hw_addr, sw_hw_addr)
+            self.net_graph.add_edge(ofctlglobal_hw_addr, sw_hw_addr,
+                    weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+            self.net_graph.add_edge(sw_hw_addr, ofctlglobal_hw_addr,
+                    weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+
+    def _handle_ConnectionDown (self, event):
+        log.debug("Connection Down from node %s" % dpidToStr(event.dpid))
+        dpid = dpidToStr(event.dpid)
+        sw_mac = self.net_graph.get_by_attr('dpid', dpid)
+        self.net_graph.remove_node(sw_mac)
+
+    ########################################################
+    # _handle_PacketIn (event)
+    #########################################################
+    def _handle_PacketIn (self, event):
+        """
+        Handles packet in messages from some switch
+        The actual code is in a function which is
+        called using threads or not
+        """
+
+        self.thread_count += 1
+        # Operation using threads. Use only one method!!!
+        #thread.start_new_thread( handle_PacketIn_Function , (self,  event ) ) 
+        # Operation without threads. Use only one method!!!
+        handle_PacketIn_Function (self,  event )
+
+    ###########################################################
+    # add_node: Adiciona no ao net_graph do controlador slave 
+    ###########################################################
+
+    def _add_node (self, hwaddr, ipaddr):
+        """
+        """
+
+        self.net_graph.add_node(hwaddr, ipaddr)
+
+
+def _poller_check_conn(ofpox, interval, timeout):
+    if not openwimesh.netgraph:
+        return
+
+    # "er" means Echo Request
+    er = of.ofp_echo_request().pack()
+    now = time.time()
+    dead = []
+    
+    for n in openwimesh.netgraph.nodes():
+        # check if the node is connected
+        
+        # Avoiding that a node which is connecting to the
+        #controller ('conn' attribute is yet "None") be removed
+        if openwimesh.netgraph.node[n]['conn'] is None:
+            continue
+
+        if openwimesh.netgraph.node[n]['conn'].disconnected: 
+            dead.append(n)
+            continue
+
+        if  now - openwimesh.netgraph.node[n]['conn'].idle_time > (interval+timeout):
+            dead.append(n)
+            continue
+
+        # if the node is connected, send an echo request message
+        openwimesh.netgraph.node[n]['conn'].send(er)
+
+    for n in dead:
+        log.debug("Timeout from node %s" % n)
+        try:
+            openwimesh.netgraph.remove_node(n)
+        except:
+            log.debug("Error removing node from graph (%s)" % n)
+    
+def launch (ofmac, ofip, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
+    core.openflow.miss_send_len = 1024
+    core.openflow.clear_flows_on_connect = False
+    core.registerNew(openwimesh, ofmac, ofip, algorithm)
+    Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))
