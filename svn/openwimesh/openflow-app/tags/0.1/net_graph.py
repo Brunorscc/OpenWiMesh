@@ -41,7 +41,37 @@ from time import time
 
 Mb=1024.0*1024.0
 
-class NetGraph(DiGraph):
+class Controller():
+    def __init__(self):
+        self.ofctl_id = None
+        self.ofctl_hwaddr = None
+        self.ofctl_ipaddr = None
+        self.global_ofctl_hwaddr = None
+        self.global_ofctl_ipaddr = None
+
+    def add_global_ofctl(self, hwaddr, ipaddr):
+        self.global_ofctl_hwaddr = hwaddr
+        self.global_ofctl_ipaddr = ipaddr
+
+    def get_hw_global_ofctl(self):
+        return self.global_ofctl_hwaddr
+
+    def get_ip_global_ofctl(self):
+        return self.global_ofctl_ipaddr
+
+    def add_ofctl(self, cid, hwaddr, ipaddr):
+        self.ofctl_id = cid
+        self.ofctl_hwaddr = hwaddr
+        self.ofctl_ipaddr = ipaddr
+
+    def get_hw_ofctl(self):
+        return self.ofctl_hwaddr
+
+    def get_ip_ofctl(self):
+        return self.ofctl_ipaddr
+
+
+class NetGraph(DiGraph, Controller):
     # default weight - greater than any possible residual bw
     DEFAULT_WEIGHT = 600
     # timeout for confirm an edge
@@ -51,10 +81,10 @@ class NetGraph(DiGraph):
 
     def __init__(self):
         DiGraph.__init__(self)
-        self.ofctlglobal_hwaddr = None
-        self.ofctlglobal_ipaddr = None
-        self.ofctl2_hwaddr = None
-        self.ofctl2_ipaddr = None
+#        self.ofctlglobal_hwaddr = None
+#        self.ofctlglobal_ipaddr = None
+#        self.ofctl2_hwaddr = None
+#        self.ofctl2_ipaddr = None
         self.weight_selection_algorithm = None
         # init time stamp
         self.time_stamp = 0
@@ -78,15 +108,6 @@ class NetGraph(DiGraph):
             self.node[n]['conn'].disconnect()
         DiGraph.remove_node(self, n)
         log.debug("Node with hwaddr \"%s\"removed" % hwaddr)
-
-    def add_ofctlglobal(self, hw_addr, ip_addr):
-        self.ofctlglobal_hwaddr = hw_addr
-        self.ofctlglobal_ipaddr = ip_addr
-
-    def add_ofctl2(self, hw_addr, ip_addr):
-        self.ofctl2_hwaddr = hw_addr
-        self.ofctl2_ipaddr = ip_addr
-
     def set_ofctl_weight_selection_algorithm(self, algorithm):
         self.weight_selection_algorithm = int(algorithm)
 
@@ -174,19 +195,6 @@ class NetGraph(DiGraph):
         node = self.node[hwaddr]
         if node:
             node['ip'] = ip
-
-    def get_ofctlglobal_ipaddr(self):
-        return self.ofctlglobal_ipaddr
-
-    def get_ofctlglobal_hwaddr(self):
-        return self.ofctlglobal_hwaddr
-
-    def get_ofctl2_ipaddr(self):
-        return self.ofctl2_ipaddr
-
-    def get_ofctl2_hwaddr(self):
-        return self.ofctl2_hwaddr
-
     def get_out_port_no(self, node, dl_dst):
         if node not in self.nodes():
             return None

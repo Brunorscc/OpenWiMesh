@@ -212,7 +212,7 @@ class openwimesh (EventMixin):
 
     @classmethod
     def who_is_globalctl(cls):
-       print "The global controller is %s %s " % ( openwimesh.netgraph.get_ofctlglobal_ipaddr(), openwimesh.netgraph.get_ofctlglobal_hwaddr() )
+       print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_ofctl(), openwimesh.netgraph.get_hw_ofctl() )
 
     @classmethod
     def show_graph(cls, attr='weight', node_attr='name', title='Wireless Mesh Network'): # attr is the name of edge attribute
@@ -280,7 +280,8 @@ class openwimesh (EventMixin):
         self.directly_connected_nodes = []
 
         # The first node of the graph is the own global controller
-        self.net_graph.add_ofctlglobal(ofmac, ofip)
+        self.net_graph.add_global_ofctl(ofmac, ofip)
+        self.net_graph.add_ofctl(0, ofmac, ofip)
 
         # dictionary of nodes trying to connect to the controller,
         # in the form:
@@ -656,7 +657,7 @@ class openwimesh (EventMixin):
         # If this is not a connection with the controller, we just use the
         # receiving node as entry point of our network and we use that node as
         # the Ethernet first hop of the communication
-        ofctlglobal_ip = self.net_graph.get_ofctlglobal_ipaddr()
+        ofctlglobal_ip = self.net_graph.get_ip_ofctl()
         if dst_node_ip != ofctlglobal_ip and orig_src_ip != ofctlglobal_ip:
             log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
             self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
@@ -671,7 +672,7 @@ class openwimesh (EventMixin):
         if dst_node_ip == ofctlglobal_ip:
             # if the node who generated the packetin to controller is itself
             # the controller, then the node is directly connected
-            if recv_node_hw == self.net_graph.get_ofctlglobal_hwaddr():
+            if recv_node_hw == self.net_graph.get_hw_ofctl():
                 self.directly_connected_nodes.append(orig_src_hw)
 
             # Now we save some information about the node that is trying to
@@ -788,7 +789,7 @@ class openwimesh (EventMixin):
         self.net_graph.add_node(sw_hw_addr, **attrs)
 
         if directly_connected:
-            ofctlglobal_hw_addr = self.net_graph.get_ofctlglobal_hwaddr()
+            ofctlglobal_hw_addr = self.net_graph.get_hw_ofctl()
             log.debug("INFO: adding edge %s <-> %s", ofctlglobal_hw_addr, sw_hw_addr)
             self.net_graph.add_edge(ofctlglobal_hw_addr, sw_hw_addr,
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
