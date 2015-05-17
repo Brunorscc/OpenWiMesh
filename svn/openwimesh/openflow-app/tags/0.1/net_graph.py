@@ -49,7 +49,6 @@ class Controller():
         self.global_ofctl_hwaddr = None
         self.global_ofctl_ipaddr = None
         self.global_ofctl_id = None
-#        self.ofctl_l = None
 
     def add_global_ofctl(self, cid, hwaddr, ipaddr):
         self.global_ofctl_hwaddr = hwaddr
@@ -66,11 +65,6 @@ class Controller():
         self.ofctl_id = cid
         self.ofctl_hwaddr = hwaddr
         self.ofctl_ipaddr = ipaddr
-#        di = {cid: [hwaddr,ipaddr]}
-#        try:
-#            self.ofctl_l = "bbb"
-#        except AttributeError as e:
-#            print "attribute error. ", e
 
     def get_hw_ofctl(self):
         return self.ofctl_hwaddr
@@ -105,6 +99,9 @@ class NetGraph(DiGraph, Controller):
         l = [cid, hwaddr, ipaddr, priority]
         self.ofctl_list.append(l)
 
+    def print_ofctl_list(self):
+        print sorted( self.ofctl_list, key=lambda l: l[3])
+
     def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
             fdb=None):
         if ports is None:
@@ -128,7 +125,7 @@ class NetGraph(DiGraph, Controller):
         self.weight_selection_algorithm = int(algorithm)
 
     def get_by_attr(self, attr, value):
-        for node in self.nodes(data=True):
+        for node in self.nodes(data=True):# porque data=True?
             if node[1].get(attr, None) == value:
                 return node[0]
         return None

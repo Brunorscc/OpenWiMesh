@@ -114,5 +114,5 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    if [ -z "$DISPLAY" ]; then
       export DISPLAY=:0
    fi
-   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$IPADDR --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --algorithm=0 py &
+   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$IPADDR --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --ofglobal=1 --algorithm=0 py &
 fi

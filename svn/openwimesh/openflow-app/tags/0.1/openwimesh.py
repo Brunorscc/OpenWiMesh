@@ -212,7 +212,7 @@ class openwimesh (EventMixin):
 
     @classmethod
     def who_is_globalctl(cls):
-       print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_ofctl(), openwimesh.netgraph.get_hw_ofctl() )
+       print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_global_ofctl(), openwimesh.netgraph.get_hw_global_ofctl() )
 
     @classmethod
     def show_graph(cls, attr='weight', node_attr='name', title='Wireless Mesh Network'): # attr is the name of edge attribute
@@ -268,7 +268,7 @@ class openwimesh (EventMixin):
                 log.debug("  %s -> %s" % (n, g.node[n]['ip']))
 
 
-    def __init__ (self, ofmac, ofip, cid, priority, algorithm):
+    def __init__ (self, ofmac, ofip, cid, priority, algorithm, ofglobal):
         self.listenTo(core.openflow)
 
         # create the graph
@@ -280,7 +280,13 @@ class openwimesh (EventMixin):
         self.directly_connected_nodes = []
 
         # The first node of the graph is the own global controller
-        self.net_graph.add_global_ofctl(cid, ofmac, ofip)
+        print ofglobal
+        if ofglobal:
+            print "desgraça!"
+        if ofglobal:
+            self.net_graph.add_global_ofctl(cid, ofmac, ofip)
+            print "passei!"
+
         self.net_graph.add_ofctl(cid, ofmac, ofip)
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
         
@@ -659,8 +665,8 @@ class openwimesh (EventMixin):
         # If this is not a connection with the controller, we just use the
         # receiving node as entry point of our network and we use that node as
         # the Ethernet first hop of the communication
-        ofctlglobal_ip = self.net_graph.get_ip_ofctl()
-        if dst_node_ip != ofctlglobal_ip and orig_src_ip != ofctlglobal_ip:
+        ofctl_ip = self.net_graph.get_ip_ofctl()
+        if dst_node_ip != ofct_ip and orig_src_ip != ofctl_ip:
             log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
             self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                     orig_src_hw)
@@ -671,7 +677,7 @@ class openwimesh (EventMixin):
             return
 
         # check if the node is trying to talk with the controller
-        if dst_node_ip == ofctlglobal_ip:
+        if dst_node_ip == ofctl_ip:
             # if the node who generated the packetin to controller is itself
             # the controller, then the node is directly connected
             if recv_node_hw == self.net_graph.get_hw_ofctl():
@@ -686,9 +692,9 @@ class openwimesh (EventMixin):
                 'nw_dst' : dst_node_ip,
                 'nw_proto' : packet.ipv4.TCP_PROTOCOL}
 
-        if dst_node_ip == ofctlglobal_ip:
+        if dst_node_ip == ofctl_ip:
             match_fields['tp_dst'] = 6633
-        elif orig_src_ip == ofctlglobal_ip:
+        elif orig_src_ip == ofctl_ip:
             match_fields['tp_src'] = 6633
 
         self._install_path(event, recv_node_ip, dst_node_ip, match_fields)
@@ -791,11 +797,11 @@ class openwimesh (EventMixin):
         self.net_graph.add_node(sw_hw_addr, **attrs)
 
         if directly_connected:
-            ofctlglobal_hw_addr = self.net_graph.get_hw_ofctl()
-            log.debug("INFO: adding edge %s <-> %s", ofctlglobal_hw_addr, sw_hw_addr)
-            self.net_graph.add_edge(ofctlglobal_hw_addr, sw_hw_addr,
+            ofctl_hw_addr = self.net_graph.get_hw_ofctl()
+            log.debug("INFO: adding edge %s <-> %s", ofctl_hw_addr, sw_hw_addr)
+            self.net_graph.add_edge(ofctl_hw_addr, sw_hw_addr,
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-            self.net_graph.add_edge(sw_hw_addr, ofctlglobal_hw_addr,
+            self.net_graph.add_edge(sw_hw_addr, ofctl_hw_addr,
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
 
     def _handle_ConnectionDown (self, event):
@@ -866,8 +872,11 @@ def _poller_check_conn(ofpox, interval, timeout):
         except:
             log.debug("Error removing node from graph (%s)" % n)
     
-def launch (ofmac, ofip, cid=0, priority=0, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
+def launch (ofmac, ofip, cid=0, priority=0, ofglobal=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
     core.openflow.miss_send_len = 1024
     core.openflow.clear_flows_on_connect = False
-    core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm)
+    try:
+        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, ofglobal)
+    except Exception as e:
+        print e
     Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))
