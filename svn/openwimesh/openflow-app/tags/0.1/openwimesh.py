@@ -280,8 +280,9 @@ class openwimesh (EventMixin):
         self.directly_connected_nodes = []
 
         # The first node of the graph is the own global controller
-        self.net_graph.add_global_ofctl(ofmac, ofip)
+        self.net_graph.add_global_ofctl(0,ofmac, ofip)
         self.net_graph.add_ofctl(0, ofmac, ofip)
+        self.net_graph.update_ofctl_list(0, ofmac, ofip, 0)
 
         # dictionary of nodes trying to connect to the controller,
         # in the form:

@@ -48,10 +48,13 @@ class Controller():
         self.ofctl_ipaddr = None
         self.global_ofctl_hwaddr = None
         self.global_ofctl_ipaddr = None
+        self.global_ofctl_id = None
+#        self.ofctl_l = None
 
-    def add_global_ofctl(self, hwaddr, ipaddr):
+    def add_global_ofctl(self, cid, hwaddr, ipaddr):
         self.global_ofctl_hwaddr = hwaddr
         self.global_ofctl_ipaddr = ipaddr
+        self.global_ofctl_id = cid
 
     def get_hw_global_ofctl(self):
         return self.global_ofctl_hwaddr
@@ -63,12 +66,20 @@ class Controller():
         self.ofctl_id = cid
         self.ofctl_hwaddr = hwaddr
         self.ofctl_ipaddr = ipaddr
+#        di = {cid: [hwaddr,ipaddr]}
+#        try:
+#            self.ofctl_l = "bbb"
+#        except AttributeError as e:
+#            print "attribute error. ", e
 
     def get_hw_ofctl(self):
         return self.ofctl_hwaddr
 
     def get_ip_ofctl(self):
         return self.ofctl_ipaddr
+
+    def get_controller_id(self):
+        return self.ofctl_id
 
 
 class NetGraph(DiGraph, Controller):
@@ -85,9 +96,14 @@ class NetGraph(DiGraph, Controller):
 #        self.ofctlglobal_ipaddr = None
 #        self.ofctl2_hwaddr = None
 #        self.ofctl2_ipaddr = None
+        self.ofctl_list = []
         self.weight_selection_algorithm = None
         # init time stamp
         self.time_stamp = 0
+
+    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority):
+        l = [cid, hwaddr, ipaddr, priority]
+        self.ofctl_list.append(l)
 
     def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
             fdb=None):
