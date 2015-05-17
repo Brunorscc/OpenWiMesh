@@ -268,7 +268,7 @@ class openwimesh (EventMixin):
                 log.debug("  %s -> %s" % (n, g.node[n]['ip']))
 
 
-    def __init__ (self, ofmac, ofip, algorithm):
+    def __init__ (self, ofmac, ofip, cid, priority, algorithm):
         self.listenTo(core.openflow)
 
         # create the graph
@@ -280,9 +280,10 @@ class openwimesh (EventMixin):
         self.directly_connected_nodes = []
 
         # The first node of the graph is the own global controller
-        self.net_graph.add_global_ofctl(0,ofmac, ofip)
-        self.net_graph.add_ofctl(0, ofmac, ofip)
-        self.net_graph.update_ofctl_list(0, ofmac, ofip, 0)
+        self.net_graph.add_global_ofctl(cid, ofmac, ofip)
+        self.net_graph.add_ofctl(cid, ofmac, ofip)
+        self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
+        
 
         # dictionary of nodes trying to connect to the controller,
         # in the form:
@@ -865,8 +866,8 @@ def _poller_check_conn(ofpox, interval, timeout):
         except:
             log.debug("Error removing node from graph (%s)" % n)
     
-def launch (ofmac, ofip, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
+def launch (ofmac, ofip, cid=0, priority=0, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
     core.openflow.miss_send_len = 1024
     core.openflow.clear_flows_on_connect = False
-    core.registerNew(openwimesh, ofmac, ofip, algorithm)
+    core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm)
     Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))
