@@ -666,7 +666,7 @@ class openwimesh (EventMixin):
         # receiving node as entry point of our network and we use that node as
         # the Ethernet first hop of the communication
         ofctl_ip = self.net_graph.get_ip_ofctl()
-        if dst_node_ip != ofct_ip and orig_src_ip != ofctl_ip:
+        if dst_node_ip != ofctl_ip and orig_src_ip != ofctl_ip:
             log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
             self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                     orig_src_hw)
