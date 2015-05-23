@@ -170,31 +170,6 @@ class NetGraph(DiGraph, Controller):
         f.close
         return 
 
-    def print_nodes_backup(self, mac_key=None,  ip_key=None, filename = 'backup.graph',  info=None):
-        f = open(filename, 'w')
-#        elaptime = "%.1f" % elapsed_time
-        f.write('time:%s, ip key used:.%s., mac key used:.%s., info:.%s.\n' % (self.time_stamp,  ip_key ,  mac_key ,  info) )
-        if ip_key is not None:
-            found = False
-            for node in self.nodes(data=True):
-                if ip_key == node[1]['ip']:
-                    self.print_node_detail(node,  f)
-                    found = True
-            if not found:
-                f.write('Node not found on graph based on IP: .%s.\n' %  ip_key)
-        elif mac_key is not None:
-            found = False
-            for node in self.nodes(data=True):
-                if mac_key == node[0]:
-                    self.print_node_detail(node,  f)
-                    found = True
-            if not found:
-                f.write('Node not found on graph based on MAC: .%s.\n' %  ip_mac)
-        else:
-            for node in self.nodes(data=True):
-                self.print_node_detail(node,  f)
-        f.close
-        return 
 
 
     def get_node_ip(self, hwaddr):
@@ -315,3 +290,26 @@ class NetGraph(DiGraph, Controller):
             self.remove_edge(node, n)
         # update time stamp
         self.time_stamp += 1
+
+class GNetGraph(NetGraph):
+
+    def __init__(self):
+        DiGraph.__init__(self)
+        self.time_stamp = 0
+
+    def add_node(self, hwaddr, ip=None, cid=None, conn=None, sw=None, fdb=None):
+        if sw is None:
+            sw = []
+        DiGraph.add_node(self, hwaddr, ip=ip, cid=cid, conn=conn,sw=sw, name=hwaddr[12:])
+        # update time stamp 
+        self.time_stamp += 1
+    def print_node_detail(self):
+        print "x"
+    def update_edges_of_node(self):
+        print "x"
+    def convert_port_name_to_no(self):
+        print "x"
+    def get_out_port_no(self):
+        print "x"
+    def print_nodes(self):
+        print "y"
