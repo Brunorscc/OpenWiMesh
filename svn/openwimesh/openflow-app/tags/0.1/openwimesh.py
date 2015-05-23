@@ -290,6 +290,7 @@ class openwimesh (EventMixin):
                 self.gnet_graph = GNetGraph()
                 openwimesh.gnetgraph = self.gnet_graph
                 self.gnet_graph.add_node(str(ofglobalhw))
+                print "global netgraph"
 
 
 
@@ -647,7 +648,6 @@ class openwimesh (EventMixin):
             self.net_graph.add_edge(recv_node_hw, orig_src_hw,
                     weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
 
-        self.net_graph.print_nodes_backup()
         arp_req_msg = "who-has-%s-tell-%s" % (dst_node_ip, orig_src_ip)
         log.debug("ARP-Request received in %s [%s -> %s]: %s", dpid,
                 orig_src_hw, str(arp_pkt.hwdst), arp_req_msg)
