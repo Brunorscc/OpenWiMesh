@@ -90,6 +90,7 @@ def handle_PacketIn_Function (self, event):
 
         # avoid handle packets that are not broadcast and are not to the switch which sent the "packet-in"
         # (interfaces in promiscuous mode will receive these messages)
+
         if event.port != of.OFPP_LOCAL and ether_pkt.dst != EthAddr(sw_mac) and ether_pkt.dst != EthAddr('ff:ff:ff:ff:ff:ff'):
             ipsrc = 'None'
             ipdst = 'None'
@@ -111,11 +112,13 @@ def handle_PacketIn_Function (self, event):
         #    #self.net_graph.set_node_ip(sw_mac, ip.src)
 
         if ether_pkt.type == packet.ethernet.ARP_TYPE:
+            
             arp_pkt = ether_pkt.payload
             if arp_pkt.opcode == packet.arp.REQUEST:
                 self._handle_arp_req(event, arp_pkt)
             elif arp_pkt.opcode == packet.arp.REPLY:
                 # TODO: what should we do?
+                print "era um arp-reply para %s" % ether_pkt.dst
                 log.debug("Packet-In of an ARP-Reply: [%s -> %s] %s is at %s" %
                         (ether_pkt.src, ether_pkt.dst, arp_pkt.protodst,
                             arp_pkt.hwdst))
@@ -153,10 +156,13 @@ def handle_PacketIn_Function (self, event):
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         log.debug("Update graph from graphClient() in %s: %s" %
                                 (sw, assoc_list))
+                        print "its me"
                 else:
+                    print "outro udp"
                     self._handle_tcp_udp(event, ip_pkt)
             elif ip_pkt.protocol == packet.ipv4.TCP_PROTOCOL:
                 tcp = ip_pkt.find('tcp')
+                print "chegou um tcp"
                 if tcp.dstport == 6633:
                     # TODO: rule expired on communication node to controller
                     pass
@@ -215,6 +221,12 @@ class openwimesh (EventMixin):
     @classmethod
     def who_is_globalctl(cls):
        print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_global_ofctl(), openwimesh.netgraph.get_hw_global_ofctl() )
+
+    @classmethod
+    def add_node(cls,new_hw, new_ip, border_hw):
+        openwimesh.netgraph.add_node(new_hw, new_ip)
+        openwimesh.netgraph.add_edge(new_hw, border_hw, weight=10*NetGraph.DEFAULT_WEIGHT, wired=True)
+        openwimesh.netgraph.add_edge(border_hw, new_hw, weight=10*NetGraph.DEFAULT_WEIGHT, wired=True)
 
     @classmethod
     def show_graph(cls, attr='weight', node_attr='name', title='Wireless Mesh Network'): # attr is the name of edge attribute
@@ -286,10 +298,11 @@ class openwimesh (EventMixin):
         if ofglobalip:
             self.net_graph.add_global_ofctl(gcid, ofglobalhw, ofglobalip)
             print "passei!"
+                
             if ofglobalip == ofip:
                 self.gnet_graph = GNetGraph()
                 openwimesh.gnetgraph = self.gnet_graph
-                self.gnet_graph.add_node(str(ofglobalhw))
+                self.gnet_graph.add_node(str(ofglobalhw),str(ofglobalip),gcid)
                 print "global netgraph"
 
 
@@ -535,6 +548,8 @@ class openwimesh (EventMixin):
         #log.debug("Current installed paths:\n%s", self.ph.show())
 
         path = self.net_graph.path(src_ip, dst_ip)
+        print "Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
+                            dst_ip, match_fields)
         log.debug("Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
             dst_ip, match_fields))
         if len(path) == 0:
@@ -552,6 +567,7 @@ class openwimesh (EventMixin):
                 log.debug("WARNING: Path contains a non-connected node %s. "
                         "Dropping path." % (sw))
                 self._drop(event)
+                print "deu merda"
                 return
 
         #log.debug("Edges: %s", str(self.net_graph.edges(data=True)))
@@ -600,6 +616,10 @@ class openwimesh (EventMixin):
             (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id)
             if not status:
                 log.debug("Error installing flow in %s: %s", sw, msg)
+            print "path instalado"
+
+    def _send_to_global(self, event):
+        print "oi"
 
     def _handle_arp_req(self, event, arp_pkt):
         orig_src_hw = str(arp_pkt.hwsrc)
@@ -609,6 +629,7 @@ class openwimesh (EventMixin):
         # recv_node_hw: host who generated the packetin to controller
         dpid = dpidToStr(event.dpid)
         recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
+        print "pkt-in gerado por %s" % recv_node_hw
         if not recv_node_hw:
             log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
             self._drop(event)
@@ -616,7 +637,9 @@ class openwimesh (EventMixin):
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
+        print "destino e %s " % dst_node_ip
         if not dst_node_hw:
+            self._send_to_global(event)
             log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
             self._drop(event)
             self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
@@ -627,10 +650,12 @@ class openwimesh (EventMixin):
         # nodes
         if orig_src_hw not in self.net_graph.nodes():
             self.net_graph.add_node(orig_src_hw, orig_src_ip)
+            print "add o %s ao netgraph" % orig_src_ip
             
             # Debugging code ...
             #log.debug("Added new node: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
             if orig_src_ip in self.not_in_graph:
+                print "Added a node which previously was not found: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip)
                 log.debug("Added a node which previously was not found: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
             node = self.net_graph.get_by_attr('ip', orig_src_ip)
             node_ip = self.net_graph.get_node_ip(node)
@@ -647,6 +672,7 @@ class openwimesh (EventMixin):
             # recv_node to orig_src, and add a temporary edge:
             self.net_graph.add_edge(recv_node_hw, orig_src_hw,
                     weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
+            print "add edge"
 
         arp_req_msg = "who-has-%s-tell-%s" % (dst_node_ip, orig_src_ip)
         log.debug("ARP-Request received in %s [%s -> %s]: %s", dpid,
@@ -708,6 +734,7 @@ class openwimesh (EventMixin):
         # After installing the paths, send the arp-reply related to this arp-request
         self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                 orig_src_hw)
+        print "arp-reply enviado para %s" % orig_src_ip
         
         # Update the list of replied ARP-Requests
         self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
@@ -800,7 +827,16 @@ class openwimesh (EventMixin):
             # it should be removed from connecting list
             del self.connecting_nodes[sw_hw_addr]
 
+        print "add node %s" % sw_hw_addr
+
         self.net_graph.add_node(sw_hw_addr, **attrs)
+        ofctl_hw_addr = str(self.net_graph.get_hw_ofctl())
+        try:
+           self.gnet_graph.node[ofctl_hw_addr]['sw'].append(sw_hw_addr)
+        except Exception as e:
+            log.debug(" Exception %s " % e)
+
+
 
         if directly_connected:
             ofctl_hw_addr = self.net_graph.get_hw_ofctl()

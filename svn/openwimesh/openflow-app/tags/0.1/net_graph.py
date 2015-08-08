@@ -66,6 +66,9 @@ class Controller():
         self.ofctl_hwaddr = hwaddr
         self.ofctl_ipaddr = ipaddr
 
+    def get_cid_ofctl(self):
+        return self.ofctl_id
+
     def get_hw_ofctl(self):
         return self.ofctl_hwaddr
 
@@ -202,6 +205,7 @@ class NetGraph(DiGraph, Controller):
     def path(self, src_ip, dst_ip):
         src_mac = self.get_by_attr('ip', src_ip)
         dst_mac = self.get_by_attr('ip', dst_ip)
+        print "src_mac = %s dst_mac = %s" % (src_mac, dst_mac)
         if src_mac is None or dst_mac is None:
             return []
         return shortest_path(self, src_mac, dst_mac, 'weight')
@@ -297,7 +301,7 @@ class GNetGraph(NetGraph):
         DiGraph.__init__(self)
         self.time_stamp = 0
 
-    def add_node(self, hwaddr, ip=None, cid=None, conn=None, sw=None, fdb=None):
+    def add_node(self, hwaddr, ip=None, cid=None, conn=None, sw=None):
         if sw is None:
             sw = []
         DiGraph.add_node(self, hwaddr, ip=ip, cid=cid, conn=conn,sw=sw, name=hwaddr[12:])
