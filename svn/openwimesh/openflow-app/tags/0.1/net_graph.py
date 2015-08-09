@@ -75,8 +75,6 @@ class Controller():
     def get_ip_ofctl(self):
         return self.ofctl_ipaddr
 
-    def get_controller_id(self):
-        return self.ofctl_id
 
 
 class NetGraph(DiGraph, Controller):
@@ -94,9 +92,19 @@ class NetGraph(DiGraph, Controller):
 #        self.ofctl2_hwaddr = None
 #        self.ofctl2_ipaddr = None
         self.ofctl_list = []
+        self.route_ins_table = {}
         self.weight_selection_algorithm = None
         # init time stamp
         self.time_stamp = 0
+
+    def add_route_ins(self, dst_addr, cd_hw):
+        self.route_ins_table[dst_addr] = {'cd_hw': cd_hw}
+
+    def get_crossdomain_sw(self,dst_addr):
+        if dst_addr not in route_ins_table:
+            return None
+        return self.route_ins_table[dst_addr][ldst_hw]
+
 
     def update_ofctl_list(self, cid, hwaddr, ipaddr, priority):
         l = [cid, hwaddr, ipaddr, priority]
@@ -308,7 +316,7 @@ class GNetGraph(NetGraph):
         if fdb is None:
             fdb = {}
         DiGraph.add_node(self, hwaddr, ip=ip, dpid=dpid, conn=conn,
-                ports=ports, fdb=fdb, cid=cid, name=hwaddr[12:])
+                    ports=ports, fdb=fdb, cid=cid, name=hwaddr[12:])
         # update time stamp
         self.time_stamp += 1
 

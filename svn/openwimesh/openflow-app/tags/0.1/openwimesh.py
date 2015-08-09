@@ -156,7 +156,7 @@ def handle_PacketIn_Function (self, event):
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         log.debug("Update graph from graphClient() in %s: %s" %
                                 (sw, assoc_list))
-                        print "its me"
+                       # print "its me"
                 else:
                     print "outro udp"
                     self._handle_tcp_udp(event, ip_pkt)
@@ -309,7 +309,11 @@ class openwimesh (EventMixin):
 
         self.net_graph.add_ofctl(cid, ofmac, ofip)
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
-        
+
+        if ofip == '192.168.199.252':
+            self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03')
+        self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02')
+
 
         # dictionary of nodes trying to connect to the controller,
         # in the form:
@@ -638,13 +642,16 @@ class openwimesh (EventMixin):
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
         print "destino e %s " % dst_node_ip
+
         if not dst_node_hw:
-            self._send_to_global(event)
-            log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
-            self._drop(event)
-            self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
-            self.not_in_graph.append(dst_node_ip)
-            return
+            dst_node_hw = self.net_graph.get_crossdomain_sw(dst_node_ip)
+            if not dst_node_hw:
+                self._send_to_global(event)
+                log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
+                self._drop(event)
+                self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
+                self.not_in_graph.append(dst_node_ip)
+                return
 
         # Received an ARP request from a node, then add an edge between these
         # nodes
