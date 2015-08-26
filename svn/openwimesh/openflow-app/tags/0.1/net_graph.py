@@ -100,6 +100,12 @@ class NetGraph(DiGraph, Controller):
     def add_route_ins(self, dst_addr, crossd_hw, dst_sw, crossd_out_port):
         self.route_ins_table[dst_addr] = {'crossd_hw': crossd_hw, 'dst_sw': dst_sw, 'crossd_out_port': crossd_out_port }
 
+    def get_crossd_by_attr(self, attr, value):
+        for dst_addr in self.route_ins_table:
+            if self.route_ins_table[dst_addr][attr] == value:
+                return dst_addr
+        return None
+
     def get_crossdomain_sw(self,dst_addr):
         if dst_addr not in self.route_ins_table:
             return None

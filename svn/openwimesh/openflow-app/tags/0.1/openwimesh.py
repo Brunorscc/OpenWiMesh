@@ -598,6 +598,9 @@ class openwimesh (EventMixin):
 
             # the node must have a connection to the controller if we want to
             # install a path
+            if self.net_graph.get_crossd_by_attr('dst_sw', sw) == dst_ip:
+                log.debug("WARNING: install_path - ignoring switch %s", sw)
+                continue
             if not self.net_graph.node[sw].get('conn', None):
                 log.debug("WARNING: install_path - ignoring switch %s", sw)
                 continue
