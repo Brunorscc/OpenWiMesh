@@ -98,7 +98,7 @@ class NetGraph(DiGraph, Controller):
         self.time_stamp = 0
 
     def add_route_ins(self, dst_addr, crossd_hw, dst_sw, crossd_out_port):
-        self.route_ins_table[dst_addr] = {'crossd_hw': crossd_hw}
+        self.route_ins_table[dst_addr] = {'crossd_hw': crossd_hw, 'dst_sw': dst_sw, 'crossd_out_port': crossd_out_port }
 
     def get_crossdomain_sw(self,dst_addr):
         if dst_addr not in self.route_ins_table:

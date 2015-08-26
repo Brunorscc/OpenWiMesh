@@ -310,9 +310,16 @@ class openwimesh (EventMixin):
         self.net_graph.add_ofctl(cid, ofmac, ofip)
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
 
-        if ofip == '192.168.199.252':
-            self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
-        self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+        try:
+            if ofip == '192.168.199.252':
+                self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
+            self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+        except Exception as e:
+            print e
+        
+        #if ofip == '192.168.199.252':
+        #    self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
+        #self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
 
 
         # dictionary of nodes trying to connect to the controller,
