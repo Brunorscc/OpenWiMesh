@@ -311,8 +311,8 @@ class openwimesh (EventMixin):
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
 
         if ofip == '192.168.199.252':
-            self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03')
-        self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02')
+            self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
+        self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
 
 
         # dictionary of nodes trying to connect to the controller,
@@ -546,6 +546,9 @@ class openwimesh (EventMixin):
             return (False, "Unexpected error: " + sys.exc_info()[0])
 
         return (True, "")
+  
+
+
 
     def _install_path(self, event, src_ip, dst_ip, match_fields, fwd_buffered_pkt = False):
         log.debug("_install_path called")
@@ -557,6 +560,7 @@ class openwimesh (EventMixin):
         log.debug("Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
             dst_ip, match_fields))
         if len(path) == 0:
+
             log.debug("Dropping empty path from %s to %s", src_ip, dst_ip)
             self._drop(event)
             return
@@ -608,6 +612,8 @@ class openwimesh (EventMixin):
             actions = [['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
+            print "a porta de entrada é %s" % in_port
+            print "a porta de saida é %s" % out_port
             for i,p in enumerate(out_port):
                 actions.append(['output'+str(i), p])
 
@@ -642,7 +648,7 @@ class openwimesh (EventMixin):
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
         print "destino e %s " % dst_node_ip
-
+        
         if not dst_node_hw:
             dst_node_hw = self.net_graph.get_crossdomain_sw(dst_node_ip)
             if not dst_node_hw:

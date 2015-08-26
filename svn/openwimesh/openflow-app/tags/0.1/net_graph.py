@@ -97,14 +97,23 @@ class NetGraph(DiGraph, Controller):
         # init time stamp
         self.time_stamp = 0
 
-    def add_route_ins(self, dst_addr, cd_hw):
-        self.route_ins_table[dst_addr] = {'cd_hw': cd_hw}
+    def add_route_ins(self, dst_addr, crossd_hw, dst_sw, crossd_out_port):
+        self.route_ins_table[dst_addr] = {'crossd_hw': crossd_hw}
 
     def get_crossdomain_sw(self,dst_addr):
-        if dst_addr not in route_ins_table:
+        if dst_addr not in self.route_ins_table:
             return None
-        return self.route_ins_table[dst_addr][ldst_hw]
+        return self.route_ins_table[dst_addr]['crossd_hw']
 
+    def get_crossdomain_dst_sw(self,dst_addr):
+        if dst_addr not in self.route_ins_table:
+            return None
+        return self.route_ins_table[dst_addr]['dst_sw']       
+
+    def get_crossdomain_out_port(self,dst_addr):
+        if dst_addr not in self.route_ins_table:
+            return None
+        return self.route_ins_table[dst_addr]['crossd_out_port'] 
 
     def update_ofctl_list(self, cid, hwaddr, ipaddr, priority):
         l = [cid, hwaddr, ipaddr, priority]
@@ -214,8 +223,19 @@ class NetGraph(DiGraph, Controller):
         src_mac = self.get_by_attr('ip', src_ip)
         dst_mac = self.get_by_attr('ip', dst_ip)
         print "src_mac = %s dst_mac = %s" % (src_mac, dst_mac)
-        if src_mac is None or dst_mac is None:
+        if src_mac is None:
             return []
+        if dst_mac is None:
+            dst_mac = self.get_crossdomain_sw(dst_ip)
+            if dst_mac is not None:
+                domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
+                if len(domain_path) != 0:
+                    dst_sw = self.get_crossdomain_dst_sw(dst_ip)
+                    domain_path.append(dst_sw)
+                return domain_path
+            else:
+                return []
+
         return shortest_path(self, src_mac, dst_mac, 'weight')
 
     def add_edge(self, source_mac, target_mac, signal=None,
