@@ -90,6 +90,7 @@ def handle_PacketIn_Function (self, event):
 
         # avoid handle packets that are not broadcast and are not to the switch which sent the "packet-in"
         # (interfaces in promiscuous mode will receive these messages)
+        #print "event.port = %s" % event.port
 
         if event.port != of.OFPP_LOCAL and ether_pkt.dst != EthAddr(sw_mac) and ether_pkt.dst != EthAddr('ff:ff:ff:ff:ff:ff'):
             ipsrc = 'None'
@@ -313,7 +314,9 @@ class openwimesh (EventMixin):
         try:
             if ofip == '192.168.199.252':
                 self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
-            self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+                self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+            else:
+                self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:00','00:00:00:aa:00:03',1)
         except Exception as e:
             print e
         
@@ -600,9 +603,11 @@ class openwimesh (EventMixin):
             # install a path
             if self.net_graph.get_crossd_by_attr('dst_sw', sw) == dst_ip:
                 log.debug("WARNING: install_path - ignoring switch %s", sw)
+                print "x"
                 continue
             if not self.net_graph.node[sw].get('conn', None):
                 log.debug("WARNING: install_path - ignoring switch %s", sw)
+                print "y"
                 continue
 
             if i + 1 == len(path): # sw.next == NULL
