@@ -93,6 +93,7 @@ def handle_PacketIn_Function (self, event):
         #print "event.port = %s" % event.port
 
         if event.port != of.OFPP_LOCAL and ether_pkt.dst != EthAddr(sw_mac) and ether_pkt.dst != EthAddr('ff:ff:ff:ff:ff:ff'):
+            print "ta que pariu"
             ipsrc = 'None'
             ipdst = 'None'
             protoip = 'None'
@@ -313,10 +314,9 @@ class openwimesh (EventMixin):
 
         try:
             if ofip == '192.168.199.252':
-                self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
-                self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+                self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
-                self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:00','00:00:00:aa:00:03',1)
+                self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
         except Exception as e:
             print e
         
