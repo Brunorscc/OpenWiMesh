@@ -146,7 +146,7 @@ class NetGraph(DiGraph, Controller):
                     and not self.node[n]['conn'].disconnected:
             self.node[n]['conn'].disconnect()
         DiGraph.remove_node(self, n)
-        log.debug("Node with hwaddr \"%s\"removed" % hwaddr)
+        #log.debug("Node with hwaddr \"%s\"removed" % hwaddr)
     def set_ofctl_weight_selection_algorithm(self, algorithm):
         self.weight_selection_algorithm = int(algorithm)
 

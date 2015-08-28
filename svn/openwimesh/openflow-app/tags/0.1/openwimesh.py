@@ -315,8 +315,11 @@ class openwimesh (EventMixin):
         try:
             if ofip == '192.168.199.252':
                 self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+                self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+                self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
                 self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+                self.net_graph.add_route_ins('192.168.199.4', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
         except Exception as e:
             print e
         
@@ -601,14 +604,15 @@ class openwimesh (EventMixin):
 
             # the node must have a connection to the controller if we want to
             # install a path
-            if self.net_graph.get_crossd_by_attr('dst_sw', sw) == dst_ip:
+            try:
+                if not self.net_graph.node[sw].get('conn', None):
+                    log.debug("WARNING: install_path - ignoring switch %s", sw)
+                    continue
+                
+            except Exception:
                 log.debug("WARNING: install_path - ignoring switch %s", sw)
-                print "x"
                 continue
-            if not self.net_graph.node[sw].get('conn', None):
-                log.debug("WARNING: install_path - ignoring switch %s", sw)
-                print "y"
-                continue
+
 
             if i + 1 == len(path): # sw.next == NULL
                 new_dst_hw = path[i]
@@ -859,10 +863,10 @@ class openwimesh (EventMixin):
 
         self.net_graph.add_node(sw_hw_addr, **attrs)
         ofctl_hw_addr = str(self.net_graph.get_hw_ofctl())
-        try:
-           self.gnet_graph.node[ofctl_hw_addr]['sw'].append(sw_hw_addr)
-        except Exception as e:
-            log.debug(" Exception %s " % e)
+        #try:
+        #   self.gnet_graph.node[ofctl_hw_addr]['sw'].append(sw_hw_addr)
+        #except Exception as e:
+        #    log.debug(" Exception %s " % e)
 
 
 
