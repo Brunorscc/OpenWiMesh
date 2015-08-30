@@ -56,6 +56,7 @@ from networkx import draw_networkx_edge_labels
 from networkx import circular_layout as layout
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import ipaddress
 
 log = core.getLogger()
 
@@ -355,6 +356,8 @@ class openwimesh (EventMixin):
         
         # variable used to track a bug. TEMPORARY!!!
         self.not_in_graph = []
+        # variavel armengue para fingir que è outro controlador
+        self.fake_sw = {}
         
         # Set the weigth selection algorithm
         self.net_graph.set_ofctl_weight_selection_algorithm(algorithm)
@@ -627,8 +630,11 @@ class openwimesh (EventMixin):
             else:
                 prev_sw = path[i-1]
                 in_port = self.net_graph.node[sw]['fdb'].get(prev_sw, None)
-
-            actions = [['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
+            # armengue para adicionar um novo sw
+            if dst_ip in self.fake_sw:
+                actions = [['set_nw_src',self.fake_sw[dst_ip]], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
+            else:
+                actions = [['set_nw_dst',dst_ip], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
             print "a porta de entrada é %s" % in_port
@@ -666,7 +672,7 @@ class openwimesh (EventMixin):
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
-        print "destino e %s " % dst_node_ip
+        print "destino e %s - %s" % (dst_node_ip,dst_node_hw)
         
         if not dst_node_hw:
             dst_node_hw = self.net_graph.get_crossdomain_sw(dst_node_ip)
@@ -680,8 +686,13 @@ class openwimesh (EventMixin):
 
         # Received an ARP request from a node, then add an edge between these
         # nodes
+        print orig_src_hw
         if orig_src_hw not in self.net_graph.nodes():
-            self.net_graph.add_node(orig_src_hw, orig_src_ip)
+            try:
+                self.net_graph.add_node(orig_src_hw, orig_src_ip)
+            except Exception as e:
+                print e
+
             print "add o %s ao netgraph" % orig_src_ip
             
             # Debugging code ...
@@ -730,18 +741,25 @@ class openwimesh (EventMixin):
         # receiving node as entry point of our network and we use that node as
         # the Ethernet first hop of the communication
         ofctl_ip = self.net_graph.get_ip_ofctl()
+        dst_node_ip_path = dst_node_ip
         if dst_node_ip != ofctl_ip and orig_src_ip != ofctl_ip:
-            log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
-            self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
+            if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
+                dst_node_ip_path = ofctl_ip
+                self.fake_sw[orig_src_ip] = dst_node_ip
+                print "qual foi %s" % dst_node_ip_path
+            else:
+                print "bbmp"
+                log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
+                self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                     orig_src_hw)
-            # Update the list of replied ARP-Requests
-            self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
+                # Update the list of replied ARP-Requests
+                self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
                     'time' : time.time()}
-            self._drop(event)
-            return
+                self._drop(event)
+                return
 
         # check if the node is trying to talk with the controller
-        if dst_node_ip == ofctl_ip:
+        if dst_node_ip_path == ofctl_ip:
             # if the node who generated the packetin to controller is itself
             # the controller, then the node is directly connected
             if recv_node_hw == self.net_graph.get_hw_ofctl():
@@ -756,12 +774,12 @@ class openwimesh (EventMixin):
                 'nw_dst' : dst_node_ip,
                 'nw_proto' : packet.ipv4.TCP_PROTOCOL}
 
-        if dst_node_ip == ofctl_ip:
+        if dst_node_ip_path == ofctl_ip:
             match_fields['tp_dst'] = 6633
         elif orig_src_ip == ofctl_ip:
             match_fields['tp_src'] = 6633
 
-        self._install_path(event, recv_node_ip, dst_node_ip, match_fields)
+        self._install_path(event, recv_node_ip, dst_node_ip_path, match_fields)
 
         # After installing the paths, send the arp-reply related to this arp-request
         self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
