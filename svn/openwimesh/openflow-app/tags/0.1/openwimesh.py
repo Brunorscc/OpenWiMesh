@@ -362,6 +362,9 @@ class openwimesh (EventMixin):
         # Set the weigth selection algorithm
         self.net_graph.set_ofctl_weight_selection_algorithm(algorithm)
 
+    def _change_ofctl(self, sw_ip_addr):
+        print "olha merda %s" % sw_ip_addr
+
     #########################################################
     # Drop the specific packet from informed event
     #
@@ -809,6 +812,14 @@ class openwimesh (EventMixin):
             self._drop(event)
             return
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
+        nw_dst_path = nw_dst
+
+        try:
+            if nw_src in self.fake_sw and nw_dst == self.fake_sw[nw_src]:
+                nw_dst_path = self.net_graph.get_ip_ofctl()
+        except Exception as e:
+            print e
+
 
         match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
                 'nw_src' : nw_src,
@@ -817,7 +828,7 @@ class openwimesh (EventMixin):
                 'tp_src' : tp_src,
                 'tp_dst' : tp_dst}
 
-        self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
+        self._install_path(event, recv_node_ip, nw_dst_path, match_fields, fwd_buffered_pkt = True)
 
     def _handle_icmp(self, event, ip_pkt):
         nw_src = str(ip_pkt.srcip)
@@ -843,6 +854,7 @@ class openwimesh (EventMixin):
 
         self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
 
+    
 
     def _handle_ConnectionUp (self, event):
         """
@@ -895,6 +907,10 @@ class openwimesh (EventMixin):
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
             self.net_graph.add_edge(sw_hw_addr, ofctl_hw_addr,
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+        #se for fake de controlador mudar o controlador no switch
+        sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
+        if sw_ip_addr in self.fake_sw:
+            self._change_ofctl(sw_ip_addr)
 
     def _handle_ConnectionDown (self, event):
         log.debug("Connection Down from node %s" % dpidToStr(event.dpid))
