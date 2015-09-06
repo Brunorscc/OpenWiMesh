@@ -57,6 +57,8 @@ from networkx import circular_layout as layout
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import ipaddress
+import os
+import Pyro4
 
 log = core.getLogger()
 
@@ -303,9 +305,15 @@ class openwimesh (EventMixin):
             print "passei!"
                 
             if ofglobalip == ofip:
+                #os.system("python -m Pyro4.naming -n "+ ofglobalip +" &")
+                #ns = Pyro4.locateNS(host=ofglobalip)
                 self.gnet_graph = GNetGraph()
                 openwimesh.gnetgraph = self.gnet_graph
-                self.gnet_graph.add_node(str(ofglobalhw),str(ofglobalip),gcid)
+                #daemon = Pyro4.Daemon()
+                #global_ofctl_uri = daemon.register(openwimesh.gnetgraph)
+                #ns.register('global',global_ofctl_uri)
+                #daemon.requestLoop()
+                #self.gnet_graph.add_node(str(ofglobalhw),str(ofglobalip),gcid)
                 print "global netgraph"
 
 
