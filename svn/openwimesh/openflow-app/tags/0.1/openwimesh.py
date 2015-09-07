@@ -47,7 +47,6 @@ import time
 import thread
 import re
 from net_graph import NetGraph
-from net_graph import GNetGraph
 from acl import ACL
 from networkx import draw_networkx_nodes
 from networkx import draw_networkx_edges
@@ -217,11 +216,11 @@ class PathHandler():
 
 class openwimesh (EventMixin):
     netgraph = None
-    gnetgraph = None
     show_graph_time_stamp = 0
     show_graph_node_count = 0
     show_layout = None
     show_ani = None
+    global_ofctl_uri = None
 
     @classmethod
     def who_is_globalctl(cls):
@@ -287,7 +286,7 @@ class openwimesh (EventMixin):
                 log.debug("  %s -> %s" % (n, g.node[n]['ip']))
 
 
-    def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip):
+    def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri):
         self.listenTo(core.openflow)
 
         # create the graph
@@ -302,24 +301,15 @@ class openwimesh (EventMixin):
         print ofglobalip
         if ofglobalip:
             self.net_graph.add_global_ofctl(gcid, ofglobalhw, ofglobalip)
-            print "passei!"
-                
-            if ofglobalip == ofip:
-                #os.system("python -m Pyro4.naming -n "+ ofglobalip +" &")
-                #ns = Pyro4.locateNS(host=ofglobalip)
-                self.gnet_graph = GNetGraph()
-                openwimesh.gnetgraph = self.gnet_graph
-                #daemon = Pyro4.Daemon()
-                #global_ofctl_uri = daemon.register(openwimesh.gnetgraph)
-                #ns.register('global',global_ofctl_uri)
-                #daemon.requestLoop()
-                #self.gnet_graph.add_node(str(ofglobalhw),str(ofglobalip),gcid)
-                print "global netgraph"
 
 
 
         self.net_graph.add_ofctl(cid, ofmac, ofip)
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
+        self.global_ofctl_uri = uri
+
+        greeting_maker = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
+        print(greeting_maker.get_fortune("BBMP"))   # call method normally
 
         try:
             if ofip == '192.168.199.252':
@@ -332,9 +322,6 @@ class openwimesh (EventMixin):
         except Exception as e:
             print e
         
-        #if ofip == '192.168.199.252':
-        #    self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:00',1)
-        #self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
 
 
         # dictionary of nodes trying to connect to the controller,
@@ -988,11 +975,11 @@ def _poller_check_conn(ofpox, interval, timeout):
         except:
             log.debug("Error removing node from graph (%s)" % n)
     
-def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
+def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
     core.openflow.miss_send_len = 1024
     core.openflow.clear_flows_on_connect = False
     try:
-        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip)
+        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri)
     except Exception as e:
         print e
     Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))

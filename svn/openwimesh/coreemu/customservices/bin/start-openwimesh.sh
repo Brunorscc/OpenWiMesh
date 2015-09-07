@@ -112,9 +112,16 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    PRIORITY="0"
    GLOBAL_OFCTL_IP="192.168.199.254"
 
+   log "Starting openflow controller global app server"
+   python /home/openwimesh/openwimesh/openflow-app/global_ofctl_app.py 2>&1 &
+   sleep 2
+   URI=$(cat /tmp/uri.txt)
+   log "server uri is $URI"
+
+
    log "Starting Openflow Controller with OPENWIMESH app (ipaddr=$IPADDR, hwaddr=$HWADDR, cid=$CID, priority=$PRIORITY)"
    if [ -z "$DISPLAY" ]; then
       export DISPLAY=:0
    fi
-   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$IPADDR --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$CID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --algorithm=0 py &
+   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$IPADDR --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$CID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 py &
 fi
