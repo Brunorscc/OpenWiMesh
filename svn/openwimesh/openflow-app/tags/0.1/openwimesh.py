@@ -58,6 +58,7 @@ import matplotlib.animation as animation
 import ipaddress
 import os
 import Pyro4
+from threading import Thread
 
 log = core.getLogger()
 
@@ -309,7 +310,9 @@ class openwimesh (EventMixin):
         self.global_ofctl_uri = uri
 
         greeting_maker = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
-        print(greeting_maker.get_fortune("BBMP"))   # call method normally
+        async=Pyro4.async(greeting_maker)
+        th = Thread(target=self._async_call, args=(async.get_fortune("BBMP"),))
+        th.start()
 
         try:
             if ofip == '192.168.199.252':
@@ -322,7 +325,6 @@ class openwimesh (EventMixin):
         except Exception as e:
             print e
         
-
 
         # dictionary of nodes trying to connect to the controller,
         # in the form:
@@ -356,6 +358,11 @@ class openwimesh (EventMixin):
         
         # Set the weigth selection algorithm
         self.net_graph.set_ofctl_weight_selection_algorithm(algorithm)
+
+    def _async_call(self, param):
+        time.sleep(20)
+        print param.value
+
 
     def _change_ofctl(self, sw_ip_addr):
         print "olha merda %s" % sw_ip_addr

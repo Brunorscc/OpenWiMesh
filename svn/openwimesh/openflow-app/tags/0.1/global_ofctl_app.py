@@ -1,5 +1,6 @@
 import Pyro4
 import netifaces as ni
+import time
 
 class GreetingMaker(object):
     def get_fortune(self, name):
@@ -8,8 +9,8 @@ class GreetingMaker(object):
 
 
 host = ni.ifaddresses('ofsw0')[2][0]['addr']
-daemon = Pyro4.Daemon(host=host)                # make a Pyro daemon
-uri = daemon.register(GreetingMaker)   # register the greeting maker as a Pyro object
+daemon = Pyro4.Daemon(host=host,port=41922)                # make a Pyro daemon
+uri = daemon.register(GreetingMaker,"global_ofcl_app")   # register the greeting maker as a Pyro object
 
 fo = open("/tmp/uri.txt","wb")
 fo.write(str(uri) )
