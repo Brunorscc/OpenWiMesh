@@ -298,31 +298,3 @@ class NetGraph(DiGraph, Controller):
         # update time stamp
         self.time_stamp += 1
 
-class GNetGraph(NetGraph):
-
-    def __init__(self):
-        DiGraph.__init__(self)
-        self.time_stamp = 0
-
-    def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
-            fdb=None, cid=None):
-        if ports is None:
-            ports = []
-        if fdb is None:
-            fdb = {}
-        DiGraph.add_node(self, hwaddr, ip=ip, dpid=dpid, conn=conn,
-                    ports=ports, fdb=fdb, cid=cid, name=hwaddr[12:])
-        # update time stamp
-        self.time_stamp += 1
-
-
-    def print_node_detail(self):
-        print "x"
-    def update_edges_of_node(self):
-        print "x"
-    def convert_port_name_to_no(self):
-        print "x"
-    def get_out_port_no(self):
-        print "x"
-    def print_nodes(self):
-        print "y"
