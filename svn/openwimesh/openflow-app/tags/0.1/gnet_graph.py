@@ -5,6 +5,7 @@ class GNetGraph(NetGraph):
 
     def __init__(self):
         DiGraph.__init__(self)
+        self.weight_selection_algorithm = None
         self.time_stamp = 0
 
     def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,

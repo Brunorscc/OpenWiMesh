@@ -1,16 +1,14 @@
 import Pyro4
 import netifaces as ni
 import time
+from gnet_graph import GNetGraph
 
-class GreetingMaker(object):
-    def get_fortune(self, name):
-        return "Hello, {0}. Here is your fortune message:\n" \
-               "Behold the warranty -- the bold print giveth and the fine print taketh away.".format(name)
+gnet_graph = GNetGraph()
 
 
 host = ni.ifaddresses('ofsw0')[2][0]['addr']
 daemon = Pyro4.Daemon(host=host,port=41922)                # make a Pyro daemon
-uri = daemon.register(GreetingMaker,"global_ofcl_app")   # register the greeting maker as a Pyro object
+uri = daemon.register(gnet_graph,"global_ofcl_app")   # register the greeting maker as a Pyro object
 
 fo = open("/tmp/uri.txt","wb")
 fo.write(str(uri) )

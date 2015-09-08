@@ -217,6 +217,7 @@ class PathHandler():
 
 class openwimesh (EventMixin):
     netgraph = None
+    gnetgraph = None
     show_graph_time_stamp = 0
     show_graph_node_count = 0
     show_layout = None
@@ -309,10 +310,10 @@ class openwimesh (EventMixin):
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
         self.global_ofctl_uri = uri
 
-        greeting_maker = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
-        async=Pyro4.async(greeting_maker)
-        th = Thread(target=self._async_call, args=(async.get_fortune("BBMP"),))
-        th.start()
+        gnetgraph = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
+        #async=Pyro4.async(gnetgraph)
+        #th = Thread(target=self._async_call, args=(async.get_fortune("BBMP"),))
+        #th.start()
 
         try:
             if ofip == '192.168.199.252':
@@ -895,10 +896,6 @@ class openwimesh (EventMixin):
 
         self.net_graph.add_node(sw_hw_addr, **attrs)
         ofctl_hw_addr = str(self.net_graph.get_hw_ofctl())
-        #try:
-        #   self.gnet_graph.node[ofctl_hw_addr]['sw'].append(sw_hw_addr)
-        #except Exception as e:
-        #    log.debug(" Exception %s " % e)
 
 
 
