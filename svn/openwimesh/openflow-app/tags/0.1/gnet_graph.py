@@ -1,3 +1,5 @@
+from networkx import DiGraph
+from networkx import shortest_path
 from net_graph import NetGraph
 from time import time
 
@@ -8,13 +10,17 @@ class GNetGraph(NetGraph):
         self.weight_selection_algorithm = None
         self.time_stamp = 0
 
-    def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
-            fdb=None, cid=None):
-        if ports is None:
-            ports = []
-        if fdb is None:
-            fdb = {}
-        DiGraph.add_node(self, hwaddr, ip=ip, dpid=dpid, conn=conn,
-                    ports=ports, fdb=fdb, cid=cid, name=hwaddr[12:])
+    def add_node(self, hwaddr, ip=None, cid=None):
+        
+        DiGraph.add_node(self, hwaddr, ip=ip, cid=cid, name=hwaddr[12:])
         # update time stamp
         self.time_stamp += 1
+
+    def get_fortune(self, name):
+        return "Hello, {0}. Here is your fortune message:\n" \
+               "Tomorrow's lucky number is 12345678.".format(name)
+
+    def remove_node(self, n):
+        if n not in self.nodes():
+            return
+        DiGraph.remove_node(self, n)

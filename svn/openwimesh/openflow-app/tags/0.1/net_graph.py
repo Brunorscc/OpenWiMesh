@@ -46,7 +46,7 @@ Mb=1024.0*1024.0
 
 
 
-class NetGraph(DiGraph, Controller):
+class NetGraph(DiGraph, Controller, object):
     # default weight - greater than any possible residual bw
     DEFAULT_WEIGHT = 600
     # timeout for confirm an edge
