@@ -56,10 +56,7 @@ class NetGraph(DiGraph, Controller, object):
 
     def __init__(self):
         DiGraph.__init__(self)
-#        self.ofctlglobal_hwaddr = None
-#        self.ofctlglobal_ipaddr = None
-#        self.ofctl2_hwaddr = None
-#        self.ofctl2_ipaddr = None
+
         self.ofctl_list = []
         self.route_ins_table = {}
         self.weight_selection_algorithm = None

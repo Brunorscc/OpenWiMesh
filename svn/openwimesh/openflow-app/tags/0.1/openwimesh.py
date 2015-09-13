@@ -160,6 +160,7 @@ def handle_PacketIn_Function (self, event):
                             log.debug("Topology UP from %s (%s) - time from startup: %.0f" % (sw, self.ini_topology_up_count, time.time() - self.startup_time))
 				
                         self.net_graph.update_edges_of_node(sw, assoc_list)
+                        self.gnet_graph.update_edges_of_node(sw, assoc_list)
                         log.debug("Update graph from graphClient() in %s: %s" %
                                 (sw, assoc_list))
                        # print "its me"
@@ -279,6 +280,54 @@ class openwimesh (EventMixin):
         plt.show()
 
     @classmethod
+    def show_global_graph(cls, attr='weight', node_attr='name', title='Wireless Mesh Network - Global View'): # attr is the name of edge attribute
+        figure = plt.figure()
+        plt.ion()
+
+        def update_image(cls):
+            log.debug("Show Graph - Global View: Updating image")
+
+            if openwimesh.gnetgraph:
+                time_stamp = openwimesh.gnetgraph.get_time_stamp()
+                if openwimesh.show_graph_time_stamp < time_stamp:
+                    plt.clf() # clear old image
+                    plt.title(title) # reinsert title
+
+                    number_of_nodes = openwimesh.gnetgraph.number_of_nodes()
+                    d = openwimesh.gnetgraph.get_gnet_graph()
+                    gnet = Pyro4.util.SerializerBase.unregister_dict_to_class("GNetGraph")
+                    if openwimesh.show_graph_node_count != number_of_nodes:
+                        log.debug("Show Graph - Global View:  Calc New Layout")
+                        # generate new layout for graph
+                        openwimesh.show_layout = layout(gnet)
+                        openwimesh.show_graph_node_count = number_of_nodes
+
+                    log.debug("Show Graph - Global View:  New Time Stamp: " + str(time_stamp))
+                    openwimesh.show_graph_time_stamp = time_stamp 
+                    # draw nodes
+                    draw_networkx_nodes(gnet,openwimesh.show_layout,node_size=1500)
+                    # draw edges
+                    draw_networkx_edges(openwimesh.gnetgraph,openwimesh.show_layout)
+                    # getting node labels
+                    labels = dict([(node,node_attributes[node_attr]) for
+                        node,node_attributes in openwimesh.gnetgraph.nodes()])
+                    # draw node labels
+                    draw_networkx_labels(openwimesh.gnetgraph,openwimesh.show_layout,labels=labels)
+                    # getting edges labels
+                    labels=dict([((source,target), edges_attributes[attr]) for
+                        source,target,edges_attributes in
+                        openwimesh.gnetgraph.edges()])
+                    # draw edges labels
+                    draw_networkx_edge_labels(openwimesh.gnetgraph,openwimesh.show_layout,
+                            edge_labels=labels,label_pos=0.18)
+
+        openwimesh.show_ani = animation.FuncAnimation(figure, update_image,
+                blit=False, interval=10000)
+        plt.title(title) # insert title
+        plt.show()
+
+
+    @classmethod
     def list_connected(cls):
         if not openwimesh.netgraph:
             return
@@ -314,7 +363,7 @@ class openwimesh (EventMixin):
 
         self.gnet_graph = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
         openwimesh.gnetgraph = self.gnet_graph
-        print(self.gnet_graph.get_fortune("bahia"))
+        #print(self.gnet_graph.get_fortune("bahia"))
         self.async_gnetgraph=Pyro4.async(self.gnet_graph)
 
         #th = Thread(target=self._async_call, args=(async.get_fortune("BBMP"),))
@@ -350,6 +399,9 @@ class openwimesh (EventMixin):
 
         # startup time
         self.startup_time = time.time()
+
+        #Quantidades de sw que este controlador pode gerenciar
+        self.max_sw_capacity = 3
         
 	# topology update initial event counter
         self.ini_topology_up_count = 0
@@ -582,6 +634,9 @@ class openwimesh (EventMixin):
         #log.debug("Current installed paths:\n%s", self.ph.show())
 
         path = self.net_graph.path(src_ip, dst_ip)
+        print (self.gnet_graph.path(src_ip,dst_ip))
+        #th = Thread(target=self._async_call, args=( self.async_gnetgraph.path( src_ip,dst_ip ), ) )
+        #th.start()
         print "Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
                             dst_ip, match_fields)
         log.debug("Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
@@ -725,6 +780,11 @@ class openwimesh (EventMixin):
             # As we have an digraph, we supose to have communication from
             # recv_node to orig_src, and add a temporary edge:
             self.net_graph.add_edge(recv_node_hw, orig_src_hw,
+                    weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
+            #add global edge
+            self.gnet_graph.add_edge(orig_src_hw, recv_node_hw,
+                    weight=10*NetGraph.DEFAULT_WEIGHT)
+            self.gnet_graph.add_edge(recv_node_hw, orig_src_hw,
                     weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
             print "add edge"
 
@@ -904,7 +964,7 @@ class openwimesh (EventMixin):
 
         attrs['cid'] = self.net_graph.get_cid_ofctl()
         self.gnet_graph.add_node(sw_hw_addr, attrs['ip'], attrs['cid'])
-        
+        print(self.gnet_graph.nodes())
 
         if directly_connected:
             ofctl_hw_addr = self.net_graph.get_hw_ofctl()
@@ -918,6 +978,9 @@ class openwimesh (EventMixin):
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
             self.gnet_graph.add_edge(sw_hw_addr, ofctl_hw_addr,
                     weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+
+        if self.max_sw_capacity < self.net_graph.number_of_nodes():
+            print "calma"
         #se for fake de controlador mudar o controlador no switch
         sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
         if sw_ip_addr in self.fake_sw:

@@ -3,6 +3,7 @@ import netifaces as ni
 import time
 from gnet_graph import GNetGraph
 import os
+import unittest
 
 
 
@@ -29,10 +30,44 @@ class global_ofcl_app(object):
 	def remove_node(self, n):
 		self.gnet_graph.remove_node(n)
 
+	def get_node_edges_update_state(self, node, attr='signal'):
+		self.gnet_graph.get_node_edges_update_state(node, attr)
+
+	@Pyro4.oneway
+	def update_edges_of_node(self, node, assoc_list):
+		self.gnet_graph.update_edges_of_node(node, assoc_list)
+
+	def get_time_stamp(self):
+		return self.gnet_graph.time_stamp
+
+	def number_of_nodes(self):
+		return self.gnet_graph.number_of_nodes()
+
+	def nodes(self):
+		return self.gnet_graph.nodes(data=True)
+
+	def edges(self):
+		return self.gnet_graph.edges(data=True)
+
+	def path(self,src_ip, dst_ip):
+		path = self.gnet_graph.path(src_ip,dst_ip)
+		return "the gpath is %s" % path
+
 
 	def get_output(self):
 		return self.output
 		
+	def get_gnet_graph(self):
+		Pyro4.util.SerializerBase.register_class_to_dict(GNetGraph,self.mything_dict)
+		Pyro4.util.SerializerBase.register_dict_to_class("BORABAHIA", self.mything_creator)
+		return self.gnet_graph
+
+	def mything_dict(self,obj):
+		return {"__class__": "BORABAHIA","time": obj.time_stamp}
+
+	def mything_creator(self,classname,d):
+		return GNetGraph(d["time"])
+
 
 	def set_nome(self,nome):
 		self.nome = nome
