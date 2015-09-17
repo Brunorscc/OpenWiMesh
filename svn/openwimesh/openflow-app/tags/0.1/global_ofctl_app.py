@@ -12,7 +12,13 @@ class global_ofcl_app(object):
 	def __init__(self):
 		self.gnet_graph = GNetGraph()
 		self.nome = None
-		self.output = None
+		self.ip_addr = ni.ifaddresses('ofsw0')[2][0]['addr']
+		self.hw_addr = ni.ifaddresses('ofsw0')[17][0]['addr']
+		self.cid = 0
+
+	def get_cid_free(self):
+		self.cid += 1
+		return self.cid
 
 	def get_fortune(self,name):
 		return self.gnet_graph.get_fortune(name)
@@ -51,11 +57,14 @@ class global_ofcl_app(object):
 
 	def path(self,src_ip, dst_ip):
 		path = self.gnet_graph.path(src_ip,dst_ip)
-		return "the gpath is %s" % path
+		return path
 
 
-	def get_output(self):
-		return self.output
+	def get_ip_addr(self):
+		return self.ip_addr
+
+	def get_hw_addr(self):
+		return self.hw_addr
 		
 	def get_gnet_graph(self):
 		Pyro4.util.SerializerBase.register_class_to_dict(GNetGraph,self.mything_dict)

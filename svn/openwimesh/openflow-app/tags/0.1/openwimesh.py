@@ -73,6 +73,7 @@ def handle_PacketIn_Function (self, event):
         ether_pkt = event.parse()
         dpid = dpidToStr(event.dpid)
 
+
         sw_mac = self.net_graph.get_by_attr('dpid', dpid)
         if sw_mac is None:
             log.debug("INVALID-DPID: %s" % (dpid))
@@ -160,10 +161,13 @@ def handle_PacketIn_Function (self, event):
                             log.debug("Topology UP from %s (%s) - time from startup: %.0f" % (sw, self.ini_topology_up_count, time.time() - self.startup_time))
 				
                         self.net_graph.update_edges_of_node(sw, assoc_list)
-                        self.gnet_graph.update_edges_of_node(sw, assoc_list)
+                        
+                        th = Thread(target=self.gnet_graph.update_edges_of_node, args=(sw, assoc_list,))
+                        th.start()
+                        
                         log.debug("Update graph from graphClient() in %s: %s" %
                                 (sw, assoc_list))
-                       # print "its me"
+                        #print "its me"
                 else:
                     print "outro udp"
                     self._handle_tcp_udp(event, ip_pkt)
@@ -338,7 +342,7 @@ class openwimesh (EventMixin):
                 log.debug("  %s -> %s" % (n, g.node[n]['ip']))
 
 
-    def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri):
+    def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain):
         self.listenTo(core.openflow)
 
         # create the graph
@@ -350,32 +354,32 @@ class openwimesh (EventMixin):
         # of the array is the datapath-id of the node
         self.directly_connected_nodes = []
 
-        # The first node of the graph is the own global controller
-        print ofglobalip
-        if ofglobalip:
-            self.net_graph.add_global_ofctl(gcid, ofglobalhw, ofglobalip)
-
-
-
-        self.net_graph.add_ofctl(cid, ofmac, ofip)
-        self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
         self.global_ofctl_uri = uri
-
         self.gnet_graph = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
         openwimesh.gnetgraph = self.gnet_graph
         #print(self.gnet_graph.get_fortune("bahia"))
         self.async_gnetgraph=Pyro4.async(self.gnet_graph)
 
-        #th = Thread(target=self._async_call, args=(async.get_fortune("BBMP"),))
+
+        # The first node of the graph is the own global controller
+        
+        self.net_graph.add_global_ofctl(gcid, ofglobalhw, ofglobalip)
+
+
+
+        self.net_graph.add_ofctl(cid, ofmac, ofip)
+        self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
+
+        #th = Thread(target=self._async_call, args=(self.async_gnetgraph.get_fortune("BBMP"),))
         #th.start()
 
         try:
-            if ofip == '192.168.199.252':
-                self.net_graph.add_route_ins('192.168.199.254', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+            if ofip != ofglobalip:
+                self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain,1)
                 self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
                 self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
-                self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+                
                 self.net_graph.add_route_ins('192.168.199.4', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
         except Exception as e:
             print e
@@ -634,7 +638,7 @@ class openwimesh (EventMixin):
         #log.debug("Current installed paths:\n%s", self.ph.show())
 
         path = self.net_graph.path(src_ip, dst_ip)
-        print (self.gnet_graph.path(src_ip,dst_ip))
+        #print (self.gnet_graph.path(src_ip,dst_ip))
         #th = Thread(target=self._async_call, args=( self.async_gnetgraph.path( src_ip,dst_ip ), ) )
         #th.start()
         print "Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
@@ -722,6 +726,12 @@ class openwimesh (EventMixin):
     def _send_to_global(self, event):
         print "oi"
 
+    def _async_add_edge_tmp(self,node1,node2):
+        self.gnet_graph.add_edge(node1, node2,
+                    weight=10*NetGraph.DEFAULT_WEIGHT)
+        self.gnet_graph.add_edge(node2, node1,
+                    weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
+
     def _handle_arp_req(self, event, arp_pkt):
         orig_src_hw = str(arp_pkt.hwsrc)
         orig_src_ip = str(arp_pkt.protosrc)
@@ -782,10 +792,8 @@ class openwimesh (EventMixin):
             self.net_graph.add_edge(recv_node_hw, orig_src_hw,
                     weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
             #add global edge
-            self.gnet_graph.add_edge(orig_src_hw, recv_node_hw,
-                    weight=10*NetGraph.DEFAULT_WEIGHT)
-            self.gnet_graph.add_edge(recv_node_hw, orig_src_hw,
-                    weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
+            th = Thread(target=self._async_add_edge_tmp, args=(orig_src_hw, recv_node_hw,))
+            th.start()
             print "add edge"
 
         arp_req_msg = "who-has-%s-tell-%s" % (dst_node_ip, orig_src_ip)
@@ -904,6 +912,8 @@ class openwimesh (EventMixin):
         icmp_type = ip_pkt.next.type
         icmp_code = ip_pkt.next.code
 
+        #th = Thread(target=self._async_call, args=(self.async_gnetgraph.get_fortune("BBMP"),))
+        #th.start()
         # recv_node_hw: host who generated the packetin
         dpid = dpidToStr(event.dpid)
         recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
@@ -921,6 +931,29 @@ class openwimesh (EventMixin):
                 'tp_dst' : icmp_code}
 
         self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
+
+    def _make_ofctl(self,new_ofclt_hw):
+        time.sleep(1)
+        new_ofclt_ip = self.net_graph.get_node_ip(new_ofclt_hw)
+        ofctl_ip = self.net_graph.get_ip_ofctl()
+        path = self.gnet_graph.path(ofctl_ip,new_ofclt_ip)
+        i = path.index(new_ofclt_hw)
+        crossdomain_sw = path[i-1]
+        self.net_graph.add_route_ins(new_ofclt_ip, crossdomain_sw,new_ofclt_hw,1)
+        global_ofctl_ip = self.gnet_graph.get_ip_addr()
+        global_ofctl_hw = self.gnet_graph.get_hw_addr()
+        cid = self.gnet_graph.get_cid_free()
+
+        log.debug("PARMETROS: %s %s %s %s %s %s " % (new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+
+        #os.system("bash /home/openwimesh/novo-controlador.sh new_ofclt_ip new_ofclt_ip self.global_ofctl_uri global_ofctl_ip global_ofctl_hw cid crossdomain_sw")
+        os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.252 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
+
+    def _async_add_edge(self,node1,node2):
+        self.gnet_graph.add_edge(node1, node2,
+                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+        self.gnet_graph.add_edge(node2, node1,
+                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
 
     
 
@@ -963,24 +996,35 @@ class openwimesh (EventMixin):
         ofctl_hw_addr = str(self.net_graph.get_hw_ofctl())
 
         attrs['cid'] = self.net_graph.get_cid_ofctl()
-        self.gnet_graph.add_node(sw_hw_addr, attrs['ip'], attrs['cid'])
-        print(self.gnet_graph.nodes())
+        try:
+            
+            th = Thread(target=self.gnet_graph.add_node, args=(sw_hw_addr, attrs['ip'], attrs['cid'],))
+            th.start()
+            
 
-        if directly_connected:
-            ofctl_hw_addr = self.net_graph.get_hw_ofctl()
-            log.debug("INFO: adding edge %s <-> %s", ofctl_hw_addr, sw_hw_addr)
-            self.net_graph.add_edge(ofctl_hw_addr, sw_hw_addr,
-                    weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-            self.net_graph.add_edge(sw_hw_addr, ofctl_hw_addr,
-                    weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-            #no grafo global
-            self.gnet_graph.add_edge(ofctl_hw_addr, sw_hw_addr,
-                    weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-            self.gnet_graph.add_edge(sw_hw_addr, ofctl_hw_addr,
-                    weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+            if directly_connected:
+                ofctl_hw_addr = self.net_graph.get_hw_ofctl()
+                log.debug("INFO: adding edge %s <-> %s", ofctl_hw_addr, sw_hw_addr)
+                self.net_graph.add_edge(ofctl_hw_addr, sw_hw_addr,
+                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+                self.net_graph.add_edge(sw_hw_addr, ofctl_hw_addr,
+                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+                #no grafo global
+                th1 = Thread(target=self._async_add_edge, args=(ofctl_hw_addr, sw_hw_addr,))
+                th1.start()
+
+            
+            #print(self.gnet_graph.nodes())
+                
+        except Exception as e:
+            print e
+
+        
 
         if self.max_sw_capacity < self.net_graph.number_of_nodes():
             print "calma"
+            th2 = Thread(target=self._make_ofctl, args=(sw_hw_addr,))
+            th2.start()
         #se for fake de controlador mudar o controlador no switch
         sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
         if sw_ip_addr in self.fake_sw:
@@ -991,7 +1035,9 @@ class openwimesh (EventMixin):
         dpid = dpidToStr(event.dpid)
         sw_mac = self.net_graph.get_by_attr('dpid', dpid)
         self.net_graph.remove_node(sw_mac)
-        self.gnet_graph.remove_node(sw_mac)
+        
+        th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,))
+        th.start()
 
     ########################################################
     # _handle_PacketIn (event)
@@ -1052,15 +1098,22 @@ def _poller_check_conn(ofpox, interval, timeout):
         log.debug("Timeout from node %s" % n)
         try:
             openwimesh.netgraph.remove_node(n)
-            openwimesh.gnetgraph.remove_node(n)
+            
         except:
             log.debug("Error removing node from graph (%s)" % n)
+
+        try:
+            th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,))
+            th.start()
+        except Exception as e:
+            log.debug("Error removing node from gnetgraph (%s)" % e)
+
     
-def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
+def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, crossdomain=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
     core.openflow.miss_send_len = 1024
     core.openflow.clear_flows_on_connect = False
     try:
-        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri)
+        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain)
     except Exception as e:
         print e
     Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))
