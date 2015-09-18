@@ -6,7 +6,7 @@ import os
 import unittest
 
 
-
+@Pyro4.expose(instance_mode="single")
 class global_ofcl_app(object):
 	"""docstring for global_ofcl_app"""
 	def __init__(self):

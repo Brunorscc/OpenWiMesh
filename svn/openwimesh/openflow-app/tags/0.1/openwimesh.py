@@ -1039,7 +1039,7 @@ class openwimesh (EventMixin):
                 th1.start()
 
             
-            #print(self.gnet_graph.nodes())
+            print(self.gnet_graph.nodes())
             #print(self.gnet_graph.edges())
 
                 
