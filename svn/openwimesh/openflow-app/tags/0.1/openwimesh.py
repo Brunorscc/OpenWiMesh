@@ -58,6 +58,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import ipaddress
 import os
+import random
 import Pyro4
 from threading import Thread
 
@@ -299,8 +300,19 @@ class openwimesh (EventMixin):
             ns = openwimesh.gnetgraph.nodes()
             edg = openwimesh.gnetgraph.edges()
             time_stamp = openwimesh.gnetgraph.get_time_stamp()
+            dcid = {}
+            c = -1
+            colors = ["red","blue","green","purple","yellow","brown","pink","orange"]
             for n in ns:
-                gnetg.add_node(n[0],n[1]['ip'],n[1]['ip'])
+                print n
+                gnetg.add_node(n[0],n[1]['ip'],n[1]['cid'])
+                if n[1]['cid'] > c:
+                    dcid[n[1]['cid']] = []
+                    c = n[1]['cid']
+                    dcid[n[1]['cid']].append(n[0])
+                else:
+                    dcid[n[1]['cid']].append(n[0])
+
 
             for ed in edg:
                 gnetg.add_edge(ed[0], ed[1],weight=NetGraph.DEFAULT_WEIGHT, wired=True)
@@ -320,7 +332,10 @@ class openwimesh (EventMixin):
                     log.debug("Show Global Graph:  New Time Stamp: " + str(time_stamp))
                     openwimesh.gshow_graph_time_stamp = time_stamp 
                     # draw nodes
-                    draw_networkx_nodes(gnetg,openwimesh.gshow_layout,node_size=1500)
+                    for c,l in dcid.items():
+                        color = random.choice(colors)
+                        draw_networkx_nodes(gnetg,openwimesh.gshow_layout,nodelist=l,node_size=1500,node_color=color)
+                        colors.pop(colors.index(color))
                     # draw edges
                     draw_networkx_edges(gnetg,openwimesh.gshow_layout)
                     # getting node labels

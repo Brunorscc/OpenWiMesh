@@ -23,6 +23,13 @@ class GNetGraph(NetGraph):
         # update time stamp
         self.time_stamp += 1
 
+    def get_node_cid(self, hwaddr):
+        node = self.node[hwaddr]
+        if node:
+            return node['cid']
+        else:
+            return None
+
     def get_fortune(self, name):
         return "Hello, {0}. Here is your fortune message:\n" \
                "Tomorrow's lucky number is 12345678.".format(name)

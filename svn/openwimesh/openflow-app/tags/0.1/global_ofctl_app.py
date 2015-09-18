@@ -33,8 +33,10 @@ class global_ofcl_app(object):
 		self.gnet_graph.add_edge(source_mac, target_mac, signal, traffic_byt, speed_mbps, d_speed_mbps,residual_bw, weight, confirmed, wired)
 
 	@Pyro4.oneway
-	def remove_node(self, n):
-		self.gnet_graph.remove_node(n)
+	def remove_node(self, n, c):
+		cid = self.gnet_graph.get_node_cid(n[0])
+		if cid == c:
+			self.gnet_graph.remove_node(n)
 
 	def get_node_edges_update_state(self, node, attr='signal'):
 		self.gnet_graph.get_node_edges_update_state(node, attr)
