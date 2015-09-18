@@ -225,9 +225,13 @@ class openwimesh (EventMixin):
     netgraph = None
     gnetgraph = None
     show_graph_time_stamp = 0
+    gshow_graph_time_stamp = 0
     show_graph_node_count = 0
+    gshow_graph_node_count = 0
     show_layout = None
+    gshow_layout = None
     show_ani = None
+    gshow_ani = None
     global_ofctl_uri = None
 
     @classmethod
@@ -285,51 +289,57 @@ class openwimesh (EventMixin):
 
     @classmethod
     def show_global_graph(cls, attr='weight', node_attr='name', title='Wireless Mesh Network - Global View'): # attr is the name of edge attribute
+        openwimesh.gshow_graph_time_stamp = 0
         figure = plt.figure()
         plt.ion()
 
         def update_image(cls):
-            log.debug("Show Graph - Global View: Updating image")
+            log.debug("Show Global Graph: Updating image")
+            gnetg = GNetGraph()
+            ns = openwimesh.gnetgraph.nodes()
+            edg = openwimesh.gnetgraph.edges()
+            time_stamp = openwimesh.gnetgraph.get_time_stamp()
+            for n in ns:
+                gnetg.add_node(n[0],n[1]['ip'],n[1]['ip'])
 
-            if openwimesh.gnetgraph:
-                time_stamp = openwimesh.gnetgraph.get_time_stamp()
-                if openwimesh.show_graph_time_stamp < time_stamp:
+            for ed in edg:
+                gnetg.add_edge(ed[0], ed[1],weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+
+            if gnetg:
+                #print id(gnetg)
+                if openwimesh.gshow_graph_time_stamp < time_stamp:
                     plt.clf() # clear old image
                     plt.title(title) # reinsert title
 
-                    number_of_nodes = openwimesh.gnetgraph.number_of_nodes()
-                    d = openwimesh.gnetgraph.get_gnet_graph()
-                    gnet = Pyro4.util.SerializerBase.unregister_dict_to_class("GNetGraph")
-                    if openwimesh.show_graph_node_count != number_of_nodes:
-                        log.debug("Show Graph - Global View:  Calc New Layout")
+                    if openwimesh.gshow_graph_node_count != gnetg.number_of_nodes():
+                        log.debug("Show Global Graph:  Calc New Layout")
                         # generate new layout for graph
-                        openwimesh.show_layout = layout(gnet)
-                        openwimesh.show_graph_node_count = number_of_nodes
+                        openwimesh.gshow_layout = layout(gnetg)
+                        openwimesh.gshow_graph_node_count = gnetg.number_of_nodes()
 
-                    log.debug("Show Graph - Global View:  New Time Stamp: " + str(time_stamp))
-                    openwimesh.show_graph_time_stamp = time_stamp 
+                    log.debug("Show Global Graph:  New Time Stamp: " + str(time_stamp))
+                    openwimesh.gshow_graph_time_stamp = time_stamp 
                     # draw nodes
-                    draw_networkx_nodes(gnet,openwimesh.show_layout,node_size=1500)
+                    draw_networkx_nodes(gnetg,openwimesh.gshow_layout,node_size=1500)
                     # draw edges
-                    draw_networkx_edges(openwimesh.gnetgraph,openwimesh.show_layout)
+                    draw_networkx_edges(gnetg,openwimesh.gshow_layout)
                     # getting node labels
                     labels = dict([(node,node_attributes[node_attr]) for
-                        node,node_attributes in openwimesh.gnetgraph.nodes()])
+                        node,node_attributes in gnetg.nodes(data=True)])
                     # draw node labels
-                    draw_networkx_labels(openwimesh.gnetgraph,openwimesh.show_layout,labels=labels)
+                    draw_networkx_labels(gnetg,openwimesh.gshow_layout,labels=labels)
                     # getting edges labels
                     labels=dict([((source,target), edges_attributes[attr]) for
                         source,target,edges_attributes in
-                        openwimesh.gnetgraph.edges()])
+                        gnetg.edges(data=True)])
                     # draw edges labels
-                    draw_networkx_edge_labels(openwimesh.gnetgraph,openwimesh.show_layout,
+                    draw_networkx_edge_labels(gnetg,openwimesh.gshow_layout,
                             edge_labels=labels,label_pos=0.18)
 
-        openwimesh.show_ani = animation.FuncAnimation(figure, update_image,
+        openwimesh.gshow_ani = animation.FuncAnimation(figure, update_image,
                 blit=False, interval=10000)
         plt.title(title) # insert title
         plt.show()
-
 
     @classmethod
     def list_connected(cls):
@@ -946,8 +956,8 @@ class openwimesh (EventMixin):
 
         log.debug("PARMETROS: %s %s %s %s %s %s " % (new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        #os.system("bash /home/openwimesh/novo-controlador.sh new_ofclt_ip new_ofclt_ip self.global_ofctl_uri global_ofctl_ip global_ofctl_hw cid crossdomain_sw")
-        os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.252 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
+        #os.system("bash /home/openwimesh/novo-controlador.sh %s %s %s %s %s %s %s " % (new_ofclt_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.252 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
 
     def _async_add_edge(self,node1,node2):
         self.gnet_graph.add_edge(node1, node2,
@@ -1015,6 +1025,8 @@ class openwimesh (EventMixin):
 
             
             #print(self.gnet_graph.nodes())
+            #print(self.gnet_graph.edges())
+
                 
         except Exception as e:
             print e

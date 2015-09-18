@@ -53,7 +53,12 @@ class global_ofcl_app(object):
 		return self.gnet_graph.nodes(data=True)
 
 	def edges(self):
-		return self.gnet_graph.edges(data=True)
+		edges = self.gnet_graph.edges(data=True)
+		l=[]
+		for e in edges:
+			ll = [e[0],e[1]]
+			l.append(ll)
+		return l
 
 	def path(self,src_ip, dst_ip):
 		path = self.gnet_graph.path(src_ip,dst_ip)
