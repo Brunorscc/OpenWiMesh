@@ -174,7 +174,7 @@ def handle_PacketIn_Function (self, event):
                     self._handle_tcp_udp(event, ip_pkt)
             elif ip_pkt.protocol == packet.ipv4.TCP_PROTOCOL:
                 tcp = ip_pkt.find('tcp')
-                print "chegou um tcp"
+                #print "chegou um tcp"
                 if tcp.dstport == 6633:
                     # TODO: rule expired on communication node to controller
                     pass
@@ -304,7 +304,6 @@ class openwimesh (EventMixin):
             c = -1
             colors = ["red","blue","green","purple","yellow","brown","pink","orange"]
             for n in ns:
-                print n
                 gnetg.add_node(n[0],n[1]['ip'],n[1]['cid'])
                 if n[1]['cid'] > c:
                     dcid[n[1]['cid']] = []
@@ -404,8 +403,8 @@ class openwimesh (EventMixin):
                 self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
                 self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
-                
-                self.net_graph.add_route_ins('192.168.199.4', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+                pass
+                #self.net_graph.add_route_ins('192.168.199.4', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
         except Exception as e:
             print e
         
@@ -686,7 +685,7 @@ class openwimesh (EventMixin):
                 log.debug("WARNING: Path contains a non-connected node %s. "
                         "Dropping path." % (sw))
                 self._drop(event)
-                print "deu merda"
+                #print "deu merda"
                 return
 
         #log.debug("Edges: %s", str(self.net_graph.edges(data=True)))
@@ -732,8 +731,8 @@ class openwimesh (EventMixin):
                 actions = [['set_nw_dst',dst_ip], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
-            print "a porta de entrada é %s" % in_port
-            print "a porta de saida é %s" % out_port
+            #print "a porta de entrada é %s" % in_port
+            #print "a porta de saida é %s" % out_port
             for i,p in enumerate(out_port):
                 actions.append(['output'+str(i), p])
 
@@ -746,7 +745,7 @@ class openwimesh (EventMixin):
             (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id)
             if not status:
                 log.debug("Error installing flow in %s: %s", sw, msg)
-            print "path instalado"
+            #print "path instalado"
 
     def _send_to_global(self, event):
         print "oi"
@@ -959,20 +958,23 @@ class openwimesh (EventMixin):
 
     def _make_ofctl(self,new_ofclt_hw):
         time.sleep(1)
-        new_ofclt_ip = self.net_graph.get_node_ip(new_ofclt_hw)
+        sw_ip = self.net_graph.get_node_ip(new_ofclt_hw)
+        new_ofclt_ip = self.gnet_graph.get_ofctl_free_ip()
+        print "%s is free" % new_ofclt_ip
         ofctl_ip = self.net_graph.get_ip_ofctl()
-        path = self.gnet_graph.path(ofctl_ip,new_ofclt_ip)
+        path = self.gnet_graph.path(ofctl_ip,sw_ip)
         i = path.index(new_ofclt_hw)
         crossdomain_sw = path[i-1]
+        self.net_graph.add_route_ins(sw_ip, crossdomain_sw,new_ofclt_hw,1)
         self.net_graph.add_route_ins(new_ofclt_ip, crossdomain_sw,new_ofclt_hw,1)
         global_ofctl_ip = self.gnet_graph.get_ip_addr()
         global_ofctl_hw = self.gnet_graph.get_hw_addr()
         cid = self.gnet_graph.get_cid_free()
 
-        log.debug("PARMETROS: %s %s %s %s %s %s " % (new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        #os.system("bash /home/openwimesh/novo-controlador.sh %s %s %s %s %s %s %s " % (new_ofclt_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
-        #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.252 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
+        #os.system("bash /home/openwimesh/novo-controlador.sh %s %s %s %s %s %s %s " % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
 
     def _async_add_edge(self,node1,node2):
         self.gnet_graph.add_edge(node1, node2,

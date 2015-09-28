@@ -15,6 +15,12 @@ class global_ofcl_app(object):
 		self.ip_addr = ni.ifaddresses('ofsw0')[2][0]['addr']
 		self.hw_addr = ni.ifaddresses('ofsw0')[17][0]['addr']
 		self.cid = 0
+		self.ip_ofct_list=list(range(225,253))
+
+	def get_ofctl_free_ip(self):
+		free_ip="192.168.199."
+		free_ip+=str(self.ip_ofct_list.pop())
+		return free_ip
 
 	def get_cid_free(self):
 		self.cid += 1

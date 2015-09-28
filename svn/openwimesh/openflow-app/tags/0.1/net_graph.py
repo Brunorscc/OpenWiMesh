@@ -195,18 +195,25 @@ class NetGraph(DiGraph, Controller, object):
         src_mac = self.get_by_attr('ip', src_ip)
         dst_mac = self.get_by_attr('ip', dst_ip)
         print "src_mac = %s dst_mac = %s" % (src_mac, dst_mac)
+        ofctl_ip = self.get_ip_ofctl()
         if src_mac is None:
-            return []
-        if dst_mac is None:
-            dst_mac = self.get_crossdomain_sw(dst_ip)
-            if dst_mac is not None:
-                domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
-                if len(domain_path) != 0:
-                    dst_sw = self.get_crossdomain_dst_sw(dst_ip)
-                    domain_path.append(dst_sw)
-                return domain_path
+            if ofctl_ip == src_ip:
+                src_mac = self.get_hw_ofctl()
             else:
                 return []
+        if dst_mac is None:
+            if ofctl_ip == dst_ip:
+                dst_mac = self.get_hw_ofctl()
+            else:
+                dst_mac = self.get_crossdomain_sw(dst_ip)
+                if dst_mac is not None:
+                    domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
+                    if len(domain_path) != 0:
+                        dst_sw = self.get_crossdomain_dst_sw(dst_ip)
+                        domain_path.append(dst_sw)
+                    return domain_path
+                else:
+                    return []
 
         return shortest_path(self, src_mac, dst_mac, 'weight')
 

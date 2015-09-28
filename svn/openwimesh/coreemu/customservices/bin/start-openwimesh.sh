@@ -97,6 +97,7 @@ for i in $OWM_IFACES; do
    # armengue para pegar as mensagens do graphclient no proprio controller
    # caso contrario ela seria entregue diretamente ao SO, que nao tendo porta
    # aberta pra isso, responderia com ICMP UNREACHABLE
+   log "$OWM_OFCTL $PRI_MYIP"
    if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
       GC_DEST_IP="192.168.199.253"
       arp -s $GC_DEST_IP 00:00:00:AA:FF:FE
