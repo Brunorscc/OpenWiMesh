@@ -5,10 +5,17 @@
 
 # default values
 OWM_IFACES="eth0"
-OWM_OFCTL="192.168.199.254"
+OWM_OFCTL=$1
+URI=$2
+GLOBAL_OFCTL_IP=$3
+GLOBAL_OFCTL_HW=$4
+CID=$5
+CROSSDOMAIN=$6
+TYPE=$7
 
 # read configuration
-[ -f openwimesh.conf ] && . openwimesh.conf
+#[ -f openwimesh.conf ] && . openwimesh.conf
+
 
 OVS_LOCALDIR="/var/lib/openvswitch"
 LOG=openwimesh_startup.log
@@ -30,17 +37,8 @@ fi
 
 # the interface used to connect to openflow controller is the first one
 PRI_IFACE=${OWM_IFACES%% *}
-PRI_MYIP=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $2}' | cut -d: -f2)
-PRI_MASK=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $4}' | cut -d: -f2)
-# if [ "$PRI_MYIP" = "192.168.199.252" ]; then
-#   OWM_OFCTL="192.168.199.252"
-#   GC_DEST_IP=$OWM_OFCTL
-# fi
-
-if [ "$PRI_MYIP" = "192.168.199.5" ]; then
-  OWM_OFCTL="192.168.199.252"
-  GC_DEST_IP=$OWM_OFCTL
-fi
+PRI_MYIP=$(LANG=C ifconfig ofsw0 | grep 'inet ' | awk '{print $2}' | cut -d: -f2)
+PRI_MASK=$(LANG=C ifconfig ofsw0 | grep 'inet ' | awk '{print $4}' | cut -d: -f2)
 
 if [ -x `which invoke-rc.d` ]
 then
@@ -101,12 +99,18 @@ if [ "$OWM_OFCTL" != "$PRI_MYIP" ]; then
 	ovs-ofctl add-flow ofsw0 tcp,in_port=65534,nw_dst=$OWM_OFCTL,tp_dst=6633,actions=output:$ovsif
 	ovs-ofctl add-flow ofsw0 tcp,nw_src=$OWM_OFCTL,nw_dst=$PRI_MYIP,tp_src=6633,actions=LOCAL
 fi
+log " TIPO = $TYPE"
+if [ "$TYPE" = "1" ]; then
+  PRI_MYIP=$OWM_OFCTL
+  log "ip = $PRI_MYIP"
+  ip addr add $PRI_MYIP/24 dev ofsw0
+fi
 
 for i in $OWM_IFACES; do
    # armengue para pegar as mensagens do graphclient no proprio controller
    # caso contrario ela seria entregue diretamente ao SO, que nao tendo porta
    # aberta pra isso, responderia com ICMP UNREACHABLE
-   log "$OWM_OFCTL $PRI_MYIP"
+   log "ss: $OWM_OFCTL $PRI_MYIP" 
    if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
       GC_DEST_IP="192.168.199.253"
       arp -s $GC_DEST_IP 00:00:00:AA:FF:FE
@@ -118,33 +122,16 @@ done
 if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    IPADDR=$(LANG=C /sbin/ifconfig ofsw0 2>/dev/null | egrep -o "inet addr:[^ ]*" |cut -d: -f2)
    HWADDR=$(LANG=C /sbin/ifconfig ofsw0 2>/dev/null | egrep -o "HWaddr [^ ]*" | cut -d" " -f2)
-   CID="0"
-   PRIORITY="0"
-   GLOBAL_OFCTL_IP="192.168.199.254"
-   if [ "$OWM_OFCTL" = "$GLOBAL_OFCTL_IP" ]; then
-      CID="0"
-      PRIORITY="0"
-      log "Starting openflow controller global app server"
-      python /home/openwimesh/openwimesh/openflow-app/global_ofctl_app.py 2>&1 &
-      sleep 2
-   fi
+   PRIORITY="10"
+   
 
-   # if [ "$OWM_OFCTL" != "$GLOBAL_OFCTL_IP" ]; then
-   #    CID="1"
-   #    PRIORITY="10"
-   #    ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:00:00:00:aa:00:02,output:1
-   #    ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
-   #    sleep 2
-   # fi
-
-  
-   URI=$(cat /tmp/uri.txt)
-   log "server uri is $URI"
-
-
-   log "Starting Openflow Controller with OPENWIMESH app (ipaddr=$IPADDR, hwaddr=$HWADDR, cid=$CID, priority=$PRIORITY)"
+   ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:$CROSSDOMAIN,output:1
+   ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
+   arp -s $GLOBAL_OFCTL_IP $HWADDR
+   sleep 5
+   log "Starting Openflow Controller with OPENWIMESH app (ipaddr=$OWM_OFCTL, hwaddr=$HWADDR, cid=$CID, priority=$PRIORITY)"
    if [ -z "$DISPLAY" ]; then
       export DISPLAY=:0
    fi
-   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$IPADDR --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$CID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 py &
+   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$OWM_OFCTL --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=0 --ofglobalhw=$GLOBAL_OFCTL_HW --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --crossdomain=$CROSSDOMAIN --algorithm=0 py &
 fi

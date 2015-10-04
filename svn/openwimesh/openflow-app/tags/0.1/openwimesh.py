@@ -305,7 +305,7 @@ class openwimesh (EventMixin):
             colors = ["red","blue","green","purple","yellow","brown","pink","orange"]
             for n in ns:
                 gnetg.add_node(n[0],n[1]['ip'],n[1]['cid'])
-                if n[1]['cid'] > c:
+                if n[1]['cid'] not in dcid.keys():
                     dcid[n[1]['cid']] = []
                     c = n[1]['cid']
                     dcid[n[1]['cid']].append(n[0])
@@ -404,7 +404,7 @@ class openwimesh (EventMixin):
                 self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
                 pass
-                #self.net_graph.add_route_ins('192.168.199.4', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
+                #self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
         except Exception as e:
             print e
         
@@ -449,9 +449,6 @@ class openwimesh (EventMixin):
         time.sleep(20)
         print param.value
 
-
-    def _change_ofctl(self, sw_ip_addr):
-        print "olha merda %s" % sw_ip_addr
 
     #########################################################
     # Drop the specific packet from informed event
@@ -777,12 +774,15 @@ class openwimesh (EventMixin):
         if not dst_node_hw:
             dst_node_hw = self.net_graph.get_crossdomain_sw(dst_node_ip)
             if not dst_node_hw:
-                self._send_to_global(event)
-                log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
-                self._drop(event)
-                self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
-                self.not_in_graph.append(dst_node_ip)
-                return
+                if self.net_graph.get_ip_ofctl() == dst_node_ip:
+                    dst_node_hw = self.net_graph.get_hw_ofctl()
+                if not dst_node_hw:
+                    self._send_to_global(event)
+                    log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
+                    self._drop(event)
+                    self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
+                    self.not_in_graph.append(dst_node_ip)
+                    return
 
         # Received an ARP request from a node, then add an edge between these
         # nodes
@@ -849,6 +849,7 @@ class openwimesh (EventMixin):
             if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
                 dst_node_ip_path = ofctl_ip
                 self.fake_sw[orig_src_ip] = dst_node_ip
+                log.debug("%s will take on %s", dst_node_ip_path,orig_src_ip)
                 print "qual foi %s" % dst_node_ip_path
             else:
                 print "bbmp"
@@ -956,6 +957,10 @@ class openwimesh (EventMixin):
 
         self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
 
+    def _change_ofctl(self, sw_ip_addr):
+        print "changing"
+
+
     def _make_ofctl(self,new_ofclt_hw):
         time.sleep(1)
         sw_ip = self.net_graph.get_node_ip(new_ofclt_hw)
@@ -973,7 +978,7 @@ class openwimesh (EventMixin):
 
         log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        #os.system("bash /home/openwimesh/novo-controlador.sh %s %s %s %s %s %s %s " % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s " % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
         #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
 
     def _async_add_edge(self,node1,node2):
@@ -981,6 +986,9 @@ class openwimesh (EventMixin):
                         weight=NetGraph.DEFAULT_WEIGHT, wired=True)
         self.gnet_graph.add_edge(node2, node1,
                         weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+
+    def _async_add_node(self,hw,ip,cid):
+        self.gnet_graph.add_node(hw, ip, cid)
 
     
 
@@ -1025,7 +1033,7 @@ class openwimesh (EventMixin):
         attrs['cid'] = self.net_graph.get_cid_ofctl()
         try:
             
-            th = Thread(target=self.gnet_graph.add_node, args=(sw_hw_addr, attrs['ip'], attrs['cid'],))
+            th = Thread(target=self._async_add_node, args=(sw_hw_addr, attrs['ip'], attrs['cid'],))
             th.start()
             
 
@@ -1057,7 +1065,9 @@ class openwimesh (EventMixin):
         #se for fake de controlador mudar o controlador no switch
         sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
         if sw_ip_addr in self.fake_sw:
-            self._change_ofctl(sw_ip_addr)
+            th3 = Thread(target=self._change_ofctl, args=(sw_ip_addr,))
+            th3.start()
+            
 
     def _handle_ConnectionDown (self, event):
         log.debug("Connection Down from node %s" % dpidToStr(event.dpid))
