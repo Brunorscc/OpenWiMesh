@@ -721,11 +721,24 @@ class openwimesh (EventMixin):
             else:
                 prev_sw = path[i-1]
                 in_port = self.net_graph.node[sw]['fdb'].get(prev_sw, None)
+
+            porta_destino = None
+            try:
+                print "valendo"
+                if str(match_fields['tp_dst']) == "22":
+                    porta_destino = "22"
+                    if porta_destino:
+                        print "funcionou?"
+            except Exception, e:
+                log.debug("WARNING:  %s", e)
+                
             # armengue para adicionar um novo sw
-            if dst_ip in self.fake_sw:
+            if dst_ip in self.fake_sw and not porta_destino :
                 actions = [['set_nw_src',self.fake_sw[dst_ip]], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             else:
                 actions = [['set_nw_dst',dst_ip], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
+
+            print actions    
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
             #print "a porta de entrada é %s" % in_port
@@ -845,6 +858,7 @@ class openwimesh (EventMixin):
         # the Ethernet first hop of the communication
         ofctl_ip = self.net_graph.get_ip_ofctl()
         dst_node_ip_path = dst_node_ip
+        print "if do armengue:  %s != %s " % (orig_src_ip,ofctl_ip)
         if dst_node_ip != ofctl_ip and orig_src_ip != ofctl_ip:
             if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
                 dst_node_ip_path = ofctl_ip
@@ -915,8 +929,10 @@ class openwimesh (EventMixin):
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
         nw_dst_path = nw_dst
 
+       
+
         try:
-            if nw_src in self.fake_sw and nw_dst == self.fake_sw[nw_src]:
+            if str(tp_src) != "22" and nw_src in self.fake_sw and nw_dst == self.fake_sw[nw_src]:
                 nw_dst_path = self.net_graph.get_ip_ofctl()
         except Exception as e:
             print e
@@ -948,6 +964,14 @@ class openwimesh (EventMixin):
             return
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
+        nw_dst_path = nw_dst
+
+        try:
+            if nw_src in self.fake_sw and nw_dst == self.fake_sw[nw_src]:
+                nw_dst_path = self.net_graph.get_ip_ofctl()
+        except Exception as e:
+            print e
+
         match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
                 'nw_src' : nw_src,
                 'nw_dst' : nw_dst,
@@ -955,7 +979,7 @@ class openwimesh (EventMixin):
                 'tp_src' : icmp_type,
                 'tp_dst' : icmp_code}
 
-        self._install_path(event, recv_node_ip, nw_dst, match_fields, fwd_buffered_pkt = True)
+        self._install_path(event, recv_node_ip, nw_dst_path, match_fields, fwd_buffered_pkt = True)
 
     def _change_ofctl(self, sw_ip_addr):
         print "changing"
