@@ -163,8 +163,11 @@ def handle_PacketIn_Function (self, event):
 				
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         
-                        th = Thread(target=self.gnet_graph.update_edges_of_node, args=(sw, assoc_list,))
-                        th.start()
+                        try:
+                            th = Thread(target=self.gnet_graph.update_edges_of_node, args=(sw, assoc_list,))
+                            th.start()
+                        except Exception as e:
+                            log.debug("Error update gnet edges (%s)" % e)
                         
                         log.debug("Update graph from graphClient() in %s: %s" %
                                 (sw, assoc_list))
@@ -225,6 +228,7 @@ class PathHandler():
 class openwimesh (EventMixin):
     netgraph = None
     gnetgraph = None
+    directlyconnectednodes = None
     show_graph_time_stamp = 0
     gshow_graph_time_stamp = 0
     show_graph_node_count = 0
@@ -377,6 +381,7 @@ class openwimesh (EventMixin):
         # array of directly connected nodes, each element
         # of the array is the datapath-id of the node
         self.directly_connected_nodes = []
+        openwimesh.directlyconnectednodes = self.directly_connected_nodes
 
         self.global_ofctl_uri = uri
         self.gnet_graph = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
@@ -592,7 +597,7 @@ class openwimesh (EventMixin):
     #           ['output', '1']         # output port
     #       ]
     #########################################################
-    def _install_flow_entry(self, sw_id, match_fields, actions, buffer_id = None):
+    def _install_flow_entry(self, sw_id, match_fields, actions, buffer_id = None,hard_timeout=0):
         status_code = True
         status_msg  = ""
         msg = of.ofp_flow_mod()
@@ -634,7 +639,7 @@ class openwimesh (EventMixin):
         # TODO: how many time this role will be valid?
         # For now, it will be forever
         msg.idle_timeout = 20
-        msg.hard_timeout = 0
+        msg.hard_timeout = hard_timeout
 
         switch = self.net_graph.node.get(sw_id, None)
         if switch is None:
@@ -738,7 +743,7 @@ class openwimesh (EventMixin):
             else:
                 actions = [['set_nw_dst',dst_ip], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
 
-            print actions    
+            print "Actions: %s" % actions    
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
             #print "a porta de entrada é %s" % in_port
@@ -751,8 +756,11 @@ class openwimesh (EventMixin):
             # promiscouos mode)
             if in_port != of.OFPP_LOCAL:
                 match_fields['dl_dst'] = EthAddr(new_src_hw)
-
-            (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id)
+            #MAIS ARMENGUE
+            if dst_ip in self.fake_sw and not porta_destino :
+                (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id,30)
+            else:
+                (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id)
             if not status:
                 log.debug("Error installing flow in %s: %s", sw, msg)
             #print "path instalado"
@@ -797,14 +805,17 @@ class openwimesh (EventMixin):
                     self.not_in_graph.append(dst_node_ip)
                     return
 
+        if self.net_graph.get_ip_ofctl() == dst_node_ip and recv_node_hw == self.net_graph.get_hw_ofctl():
+            recv_node_ip = self.net_graph.get_ip_ofctl()
+
         # Received an ARP request from a node, then add an edge between these
         # nodes
-        print orig_src_hw
+        print "mac de origem %s" % orig_src_hw
         if orig_src_hw not in self.net_graph.nodes():
             try:
                 self.net_graph.add_node(orig_src_hw, orig_src_ip)
             except Exception as e:
-                print e
+                print "Erro ao add o node: %s" % e
 
             print "add o %s ao netgraph" % orig_src_ip
             
@@ -829,8 +840,11 @@ class openwimesh (EventMixin):
             self.net_graph.add_edge(recv_node_hw, orig_src_hw,
                     weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
             #add global edge
-            th = Thread(target=self._async_add_edge_tmp, args=(orig_src_hw, recv_node_hw,))
-            th.start()
+            try:
+                th = Thread(target=self._async_add_edge_tmp, args=(orig_src_hw, recv_node_hw,))
+                th.start()
+            except Exception as e:
+                log.debug("Error add edge gnet (%s)" % e)
             print "add edge"
 
         arp_req_msg = "who-has-%s-tell-%s" % (dst_node_ip, orig_src_ip)
@@ -847,6 +861,7 @@ class openwimesh (EventMixin):
         if arp_req_msg in self.replied_arp_req:
             delay = time.time() - self.replied_arp_req[arp_req_msg]['time']
             if delay < ARP_REQ_DELAY:
+                print "Ignoring ARP-Request replied"
                 log.debug("  -> Ignoring ARP-Request replied in %d seconds"
                         " ago by %s" % (delay,
                             self.replied_arp_req[arp_req_msg]['responser']))
@@ -858,6 +873,7 @@ class openwimesh (EventMixin):
         # the Ethernet first hop of the communication
         ofctl_ip = self.net_graph.get_ip_ofctl()
         dst_node_ip_path = dst_node_ip
+        print "if do armengue:  %s != %s " % (dst_node_ip,ofctl_ip)
         print "if do armengue:  %s != %s " % (orig_src_ip,ofctl_ip)
         if dst_node_ip != ofctl_ip and orig_src_ip != ofctl_ip:
             if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
@@ -866,7 +882,7 @@ class openwimesh (EventMixin):
                 log.debug("%s will take on %s", dst_node_ip_path,orig_src_ip)
                 print "qual foi %s" % dst_node_ip_path
             else:
-                print "bbmp"
+                print("Replying an ARP not related to the OFCTL: %s. depois return", arp_req_msg)
                 log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
                 self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                     orig_src_hw)
@@ -935,7 +951,7 @@ class openwimesh (EventMixin):
             if str(tp_src) != "22" and nw_src in self.fake_sw and nw_dst == self.fake_sw[nw_src]:
                 nw_dst_path = self.net_graph.get_ip_ofctl()
         except Exception as e:
-            print e
+            print "erro armengue para o tcp: %s" % e
 
 
         match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
@@ -970,7 +986,7 @@ class openwimesh (EventMixin):
             if nw_src in self.fake_sw and nw_dst == self.fake_sw[nw_src]:
                 nw_dst_path = self.net_graph.get_ip_ofctl()
         except Exception as e:
-            print e
+            print "Erro armengue para icmp: %s" % e
 
         match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
                 'nw_src' : nw_src,
@@ -983,26 +999,36 @@ class openwimesh (EventMixin):
 
     def _change_ofctl(self, sw_ip_addr):
         print "changing"
+        ofctl_ip = self.net_graph.get_ip_ofctl()
+        log.debug("PARMETROS: %s %s" % (sw_ip_addr, ofctl_ip,))
+
+        os.system("bash /home/openwimesh/novo-controlador.sh 2 %s %s" % (sw_ip_addr, ofctl_ip))
+        os.system("arp -d %s" % sw_ip_addr)
+        os.system("ovs-ofctl del-flows ofsw0 nw_dst=%s" % sw_ip_addr)
+
+        del self.fake_sw[sw_ip_addr]
+        print self.fake_sw
+        print "fim do fake"
 
 
-    def _make_ofctl(self,new_ofclt_hw):
+    def _make_ofctl(self,new_ofctl_hw):
         time.sleep(1)
-        sw_ip = self.net_graph.get_node_ip(new_ofclt_hw)
-        new_ofclt_ip = self.gnet_graph.get_ofctl_free_ip()
-        print "%s is free" % new_ofclt_ip
+        sw_ip = self.net_graph.get_node_ip(new_ofctl_hw)
+        new_ofctl_ip = self.gnet_graph.get_ofctl_free_ip()
+        print "%s is free" % new_ofctl_ip
         ofctl_ip = self.net_graph.get_ip_ofctl()
         path = self.gnet_graph.path(ofctl_ip,sw_ip)
-        i = path.index(new_ofclt_hw)
+        i = path.index(new_ofctl_hw)
         crossdomain_sw = path[i-1]
-        self.net_graph.add_route_ins(sw_ip, crossdomain_sw,new_ofclt_hw,1)
-        self.net_graph.add_route_ins(new_ofclt_ip, crossdomain_sw,new_ofclt_hw,1)
+        self.net_graph.add_route_ins(sw_ip, crossdomain_sw,new_ofctl_hw,1)
+        self.net_graph.add_route_ins(new_ofctl_ip, crossdomain_sw,new_ofctl_hw,1)
         global_ofctl_ip = self.gnet_graph.get_ip_addr()
         global_ofctl_hw = self.gnet_graph.get_hw_addr()
         cid = self.gnet_graph.get_cid_free()
 
-        log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s " % (sw_ip, new_ofclt_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s " % (sw_ip, new_ofctl_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
         #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
 
     def _async_add_edge(self,node1,node2):
@@ -1073,12 +1099,12 @@ class openwimesh (EventMixin):
                 th1.start()
 
             
-            print(self.gnet_graph.nodes())
+            print("Gnet.nodes:",self.gnet_graph.nodes())
             #print(self.gnet_graph.edges())
 
                 
         except Exception as e:
-            print e
+            log.debug("Error conn up (%s)" % e)
 
         
 
@@ -1097,10 +1123,18 @@ class openwimesh (EventMixin):
         log.debug("Connection Down from node %s" % dpidToStr(event.dpid))
         dpid = dpidToStr(event.dpid)
         sw_mac = self.net_graph.get_by_attr('dpid', dpid)
-        self.net_graph.remove_node(sw_mac)
-        
-        th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,))
-        th.start()
+        if sw_mac in self.directly_connected_nodes:
+            self.directly_connected_nodes.remove(sw_mac)
+        try:
+            self.net_graph.remove_node(sw_mac)
+        except Exception as e:
+            log.debug("Error removing node from graph at connDown(%s)" % e)
+        try:
+            #th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,self.net_graph.get_cid_ofctl(),))
+            #th.start()
+            print(self.gnet_graph.remove_node(sw_mac,self.net_graph.get_cid_ofctl()))
+        except Exception as e:
+            log.debug("Error conn down node from gnetgraph (%s)" % e)
 
     ########################################################
     # _handle_PacketIn (event)
@@ -1157,17 +1191,21 @@ def _poller_check_conn(ofpox, interval, timeout):
         # if the node is connected, send an echo request message
         openwimesh.netgraph.node[n]['conn'].send(er)
 
+
     for n in dead:
         log.debug("Timeout from node %s" % n)
         try:
+            if n in openwimesh.directlyconnectednodes:
+                openwimesh.directlyconnectednodes.remove(n)
             openwimesh.netgraph.remove_node(n)
             
-        except:
-            log.debug("Error removing node from graph (%s)" % n)
+        except Exception as e:
+            log.debug("Error removing node from graph (%s): %s" % (n,e))
 
         try:
-            th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,))
-            th.start()
+            #th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,openwimesh.netgraph.get_cid_ofctl(),))
+            #th.start()
+            print(openwimesh.gnetgraph.remove_node(n,openwimesh.netgraph.get_cid_ofctl()))
         except Exception as e:
             log.debug("Error removing node from gnetgraph (%s)" % e)
 

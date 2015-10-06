@@ -222,6 +222,8 @@ class NetGraph(DiGraph, Controller, object):
             residual_bw=None, weight=None, confirmed=True, wired=False):
         if weight is None:
             weight = self.DEFAULT_WEIGHT
+
+        print "wired is %s" % wired
         DiGraph.add_edge(self, source_mac, target_mac, signal=signal,
                 traffic_byt=traffic_byt, speed_mbps=speed_mbps,
                 d_speed_mbps=d_speed_mbps, weight=weight, confirmed=confirmed,
@@ -245,6 +247,8 @@ class NetGraph(DiGraph, Controller, object):
         if node not in self.nodes():
             return False
 
+
+
         # update the neighbors of node with info from graphClient()
         for t in assoc_list:
             iface, neigh, signal, speed_mbps, traffic_byt, d_speed_mbps = (
@@ -260,6 +264,7 @@ class NetGraph(DiGraph, Controller, object):
             # our path will be broken
             if neigh not in self.nodes() or self.node[neigh]['conn'] is None \
                     or self.node[neigh]['conn'].disconnected:
+                #print "neigh is %s" % neigh
                 continue
 
             residual_bw = d_speed_mbps
@@ -291,14 +296,23 @@ class NetGraph(DiGraph, Controller, object):
                     d_speed_mbps, residual_bw, weight)
 
         # remove expired edges (those who were not seen by graphClient in some time)
+        print "Edges: %s" % self.edges(data=True)
+        print "Remover arestas"
         del_nodes = []
+        print "self.edge[node] is %s" % self.edge[node]
         for n in self.edge[node]:
+            print "n is %s" % n
             wired = self.edge[node][n]['wired']
             delay = time() - self.edge[node][n]['last_update']
+            print " if not %s and %s > %s " % (wired,delay, self.CONFIRM_EDGE_TOUT)
             if not wired and delay > self.CONFIRM_EDGE_TOUT:
                 del_nodes.append(n)
         for n in del_nodes:
-            self.remove_edge(node, n)
+            try:
+                print "ciao"
+                self.remove_edge(node, n)
+            except Exception as e:
+                print "erro remove edge: %s" % e
         # update time stamp
         self.time_stamp += 1
 
