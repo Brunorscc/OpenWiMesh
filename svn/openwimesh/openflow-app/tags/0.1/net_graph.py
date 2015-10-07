@@ -40,10 +40,8 @@ from networkx import shortest_path
 from time import time
 from controller import Controller
 
+
 Mb=1024.0*1024.0
-
-
-
 
 
 class NetGraph(DiGraph, Controller, object):
@@ -296,10 +294,10 @@ class NetGraph(DiGraph, Controller, object):
                     d_speed_mbps, residual_bw, weight)
 
         # remove expired edges (those who were not seen by graphClient in some time)
-        print "Edges: %s" % self.edges(data=True)
+        #log.debug("Edges: %s" % self.edges(data=True))
         print "Remover arestas"
         del_nodes = []
-        print "self.edge[node] is %s" % self.edge[node]
+        #print "self.edge[node] is %s" % self.edge[node]
         for n in self.edge[node]:
             print "n is %s" % n
             wired = self.edge[node][n]['wired']

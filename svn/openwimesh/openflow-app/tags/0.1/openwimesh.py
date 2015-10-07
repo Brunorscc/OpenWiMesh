@@ -161,6 +161,8 @@ def handle_PacketIn_Function (self, event):
 			    self.ini_topology_up_count += 1
                             log.debug("Topology UP from %s (%s) - time from startup: %.0f" % (sw, self.ini_topology_up_count, time.time() - self.startup_time))
 				
+                        log.debug("Nodes: %s" % self.net_graph.nodes(data=True))
+                        log.debug("Edges: %s" % self.net_graph.edges(data=True))
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         
                         try:
@@ -229,6 +231,7 @@ class openwimesh (EventMixin):
     netgraph = None
     gnetgraph = None
     directlyconnectednodes = None
+    addnode_time = {}
     show_graph_time_stamp = 0
     gshow_graph_time_stamp = 0
     show_graph_node_count = 0
@@ -791,6 +794,7 @@ class openwimesh (EventMixin):
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
         print "destino e %s - %s" % (dst_node_ip,dst_node_hw)
+
         
         if not dst_node_hw:
             dst_node_hw = self.net_graph.get_crossdomain_sw(dst_node_ip)
@@ -814,6 +818,7 @@ class openwimesh (EventMixin):
         if orig_src_hw not in self.net_graph.nodes():
             try:
                 self.net_graph.add_node(orig_src_hw, orig_src_ip)
+                openwimesh.addnode_time[orig_src_hw] = time.time()
             except Exception as e:
                 print "Erro ao add o node: %s" % e
 
@@ -1078,6 +1083,10 @@ class openwimesh (EventMixin):
         print "add node %s" % sw_hw_addr
 
         self.net_graph.add_node(sw_hw_addr, **attrs)
+        try:
+            del openwimesh.addnode_time[sw_hw_addr]
+        except Exception as e:
+            log.debug("Erro dele addnode_time: %s" % e)
         ofctl_hw_addr = str(self.net_graph.get_hw_ofctl())
 
         attrs['cid'] = self.net_graph.get_cid_ofctl()
@@ -1178,6 +1187,14 @@ def _poller_check_conn(ofpox, interval, timeout):
         # Avoiding that a node which is connecting to the
         #controller ('conn' attribute is yet "None") be removed
         if openwimesh.netgraph.node[n]['conn'] is None:
+            try:
+                if now - openwimesh.addnode_time[n] > 10:
+                    del openwimesh.addnode_time[n]
+                    dead.append(n)
+                    log.debug("Removendo no que demorou para conectar")
+            except Exception as e:
+                print "Error: %s" % e
+                log.debug("Erro addnode_time: %s" % e)
             continue
 
         if openwimesh.netgraph.node[n]['conn'].disconnected: 

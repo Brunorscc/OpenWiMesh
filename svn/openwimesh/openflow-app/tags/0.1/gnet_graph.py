@@ -3,7 +3,10 @@ from networkx import shortest_path
 from net_graph import NetGraph
 from time import time
 
+
 Mb=1024.0*1024.0
+
+
 
 class GNetGraph(NetGraph):
     DEFAULT_WEIGHT = 600
