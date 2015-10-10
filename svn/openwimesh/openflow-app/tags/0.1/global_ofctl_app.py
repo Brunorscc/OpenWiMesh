@@ -17,6 +17,17 @@ class global_ofcl_app(object):
 		self.hw_addr = ni.ifaddresses('ofsw0')[17][0]['addr']
 		self.cid = 0
 		self.ip_ofct_list=list(range(225,253))
+		self.becoming_ofctl = []
+
+	def becoming_ofctl(self):
+		return self.becoming_ofctl
+
+	@Pyro4.oneway
+	def add_becoming_ofctl(self,sw_mac):
+		self.becoming_ofctl.append(sw_mac)
+
+	def del_becoming_ofctl(self,sw_mac):
+		del self.becoming_ofctl
 
 	def get_ofctl_free_ip(self):
 		free_ip="192.168.199."

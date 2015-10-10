@@ -221,7 +221,7 @@ class NetGraph(DiGraph, Controller, object):
         if weight is None:
             weight = self.DEFAULT_WEIGHT
 
-        print "wired is %s" % wired
+        #print "wired is %s" % wired
         DiGraph.add_edge(self, source_mac, target_mac, signal=signal,
                 traffic_byt=traffic_byt, speed_mbps=speed_mbps,
                 d_speed_mbps=d_speed_mbps, weight=weight, confirmed=confirmed,
@@ -295,14 +295,14 @@ class NetGraph(DiGraph, Controller, object):
 
         # remove expired edges (those who were not seen by graphClient in some time)
         #log.debug("Edges: %s" % self.edges(data=True))
-        print "Remover arestas"
+        #print "Remover arestas"
         del_nodes = []
         #print "self.edge[node] is %s" % self.edge[node]
         for n in self.edge[node]:
-            print "n is %s" % n
+            #print "n is %s" % n
             wired = self.edge[node][n]['wired']
             delay = time() - self.edge[node][n]['last_update']
-            print " if not %s and %s > %s " % (wired,delay, self.CONFIRM_EDGE_TOUT)
+            #print " if not %s and %s > %s " % (wired,delay, self.CONFIRM_EDGE_TOUT)
             if not wired and delay > self.CONFIRM_EDGE_TOUT:
                 del_nodes.append(n)
         for n in del_nodes:

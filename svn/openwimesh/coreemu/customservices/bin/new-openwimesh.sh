@@ -90,6 +90,13 @@ for i in $OWM_IFACES; do
     ovs-ofctl mod-port ofsw0 $i no-packet-in
 done
 
+log " TIPO = $TYPE"
+if [ "$TYPE" = "1" ]; then
+  PRI_MYIP=$OWM_OFCTL
+  log "ip = $PRI_MYIP"
+  ip addr add $PRI_MYIP/24 dev ofsw0
+fi
+
 if [ "$OWM_OFCTL" != "$PRI_MYIP" ]; then
 	
 	ovsif=$(ovs-ofctl show ofsw0 | egrep -o "[0-9]+\($PRI_IFACE\): addr" | cut -d'(' -f1 | tr -d ' ')
@@ -99,12 +106,7 @@ if [ "$OWM_OFCTL" != "$PRI_MYIP" ]; then
 	ovs-ofctl add-flow ofsw0 tcp,in_port=65534,nw_dst=$OWM_OFCTL,tp_dst=6633,actions=output:$ovsif
 	ovs-ofctl add-flow ofsw0 tcp,nw_src=$OWM_OFCTL,nw_dst=$PRI_MYIP,tp_src=6633,actions=LOCAL
 fi
-log " TIPO = $TYPE"
-if [ "$TYPE" = "1" ]; then
-  PRI_MYIP=$OWM_OFCTL
-  log "ip = $PRI_MYIP"
-  ip addr add $PRI_MYIP/24 dev ofsw0
-fi
+
 
 for i in $OWM_IFACES; do
    # armengue para pegar as mensagens do graphclient no proprio controller
