@@ -98,6 +98,8 @@ def handle_PacketIn_Function (self, event):
         # (interfaces in promiscuous mode will receive these messages)
         #print "event.port = %s" % event.port
 
+        
+
         if event.port != of.OFPP_LOCAL and ether_pkt.dst != EthAddr(sw_mac) and ether_pkt.dst != EthAddr('ff:ff:ff:ff:ff:ff'):
             print "ta que pariu"
             ipsrc = 'None'
@@ -449,6 +451,8 @@ class openwimesh (EventMixin):
         self.not_in_graph = []
         # variavel armengue para fingir que è outro controlador
         self.fake_sw = {}
+
+        self.drop_fake = {}
         
         # Set the weigth selection algorithm
         self.net_graph.set_ofctl_weight_selection_algorithm(algorithm)
@@ -654,8 +658,9 @@ class openwimesh (EventMixin):
         try:
             conn = switch['conn']
             conn.send(msg)
-        except:
-            return (False, "Unexpected error: " + sys.exc_info()[0])
+        except Exception as e:
+            print e
+            return (False, "Unexpected error: " + str(e))
 
         return (True, "")
   
@@ -742,8 +747,8 @@ class openwimesh (EventMixin):
                 
             # armengue para adicionar um novo sw
             ofctl_hw_addr = self.net_graph.get_hw_ofctl()
-            print "%s in %s is %s" % (dst_ip,self.fake_sw,(dst_ip in self.fake_sw))
-            print "%s in %s is %s" % (match_fields['nw_src'],self.fake_sw,(match_fields['nw_src'] in self.fake_sw))
+            #print "%s in %s is %s" % (dst_ip,self.fake_sw,(dst_ip in self.fake_sw))
+            #print "%s in %s is %s" % (match_fields['nw_src'],self.fake_sw,(match_fields['nw_src'] in self.fake_sw))
        
             if dst_ip in self.fake_sw and not porta_destino and i +2 == len(path):
                 print "passei 1"
@@ -790,6 +795,20 @@ class openwimesh (EventMixin):
         orig_src_hw = str(arp_pkt.hwsrc)
         orig_src_ip = str(arp_pkt.protosrc)
         dst_node_ip = str(arp_pkt.protodst)
+
+        try:
+            #print "%s in %s is %s" % (orig_src_ip,self.drop_fake, (orig_src_ip in self.drop_fake) ) 
+            if orig_src_ip in self.drop_fake and dst_node_ip == self.drop_fake[orig_src_ip][0]:
+                
+                print "%s" % (time.time() - self.drop_fake[orig_src_ip][1])
+                if time.time() - self.drop_fake[orig_src_ip][1] < 120:
+                    print "drop fake"
+                    self._drop(event)
+                    return
+                else:
+                    del self.drop_fake[str(ether_pkt.src)]
+        except Exception as e:
+            log.debug("Error drop fake: %s " % e)
 
         # recv_node_hw: host who generated the packetin to controller
         dpid = dpidToStr(event.dpid)
@@ -1019,20 +1038,47 @@ class openwimesh (EventMixin):
     def _change_ofctl(self, sw_ip_addr):
         print "changing"
         ofctl_ip = self.net_graph.get_ip_ofctl()
+        ofctl_hw = self.net_graph.get_hw_ofctl()
         log.debug("PARMETROS: %s %s" % (sw_ip_addr, ofctl_ip,))
         sw_hw_addr = self.net_graph.get_by_attr('ip', sw_ip_addr)
+        path = self.net_graph.path(ofctl_ip,sw_ip_addr)
+        print path
+        i = path.index(sw_hw_addr)
+        previous_sw = path[i-1]
+        previous_ip = self.net_graph.get_node_ip(previous_sw)
 
         os.system("bash /home/openwimesh/novo-controlador.sh 2 %s %s" % (sw_ip_addr, ofctl_ip))
+        self.drop_fake[sw_ip_addr] = []
+        self.drop_fake[sw_ip_addr].append(self.fake_sw[sw_ip_addr])
+        now = time.time()
+        self.drop_fake[sw_ip_addr].append(now)
+        del self.fake_sw[sw_ip_addr]
+        print "Fake = %s " % self.fake_sw
         #try:
         #    self.net_graph.remove_node(sw_hw_addr)
         #except Exception as e:
         #    log.debug("Error removing node (%s)" % e)
         #os.system("arp -d %s" % sw_ip_addr)
-        os.system("ovs-ofctl del-flows ofsw0 tcp,nw_src=%s,tp_dst=6633" % sw_ip_addr)
-        os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,dl_dst=00:00:00:aa:00:03,nw_src=192.168.199.6,nw_dst=192.168.199.254,tp_dst=6633,actions=mod_nw_dst:192.168.199.252,mod_dl_src:00:00:00:aa:00:03,mod_dl_dst:00:00:00:aa:00:03,LOCAL")
+        #os.system("ovs-ofctl del-flows ofsw0 tcp,nw_dst=%s,tp_src=6633" % sw_ip_addr)
+        #os.system("ovs-ofctl del-flows ofsw0 tcp,nw_src=%s,tp_dst=6633" % sw_ip_addr)
+        os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_dst=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,LOCAL" % (sw_ip_addr,ofctl_ip,ofctl_hw,ofctl_hw))
+        match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
+                'nw_src' : ofctl_ip,
+                'nw_dst' : sw_ip_addr,
+                'nw_proto' : packet.ipv4.TCP_PROTOCOL}
+        match_fields['tp_src'] = 6633
 
-        del self.fake_sw[sw_ip_addr]
-        print "Fake = %s " % self.fake_sw
+        buffer_id = None
+
+        actions = [['set_dl_src', previous_sw], ['set_dl_dst', sw_hw_addr]]
+
+        actions.append(['output'+str(0), 1])
+
+        #match_fields['dl_dst'] = EthAddr(previous_sw)
+           
+        (status, msg) = self._install_flow_entry(previous_sw, match_fields, actions, buffer_id)
+        #os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_src=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,output:1" % (ofctl_ip,sw_ip_addr,previous_sw,sw_hw_addr))
+
         print "fim do fake"
 
 
@@ -1144,9 +1190,9 @@ class openwimesh (EventMixin):
             th2.start()
         #se for fake de controlador mudar o controlador no switch
         sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
-        #if sw_ip_addr in self.fake_sw:
-        #    th3 = Thread(target=self._change_ofctl, args=(sw_ip_addr,))
-        #    th3.start()
+        if sw_ip_addr in self.fake_sw:
+            th3 = Thread(target=self._change_ofctl, args=(sw_ip_addr,))
+            th3.start()
             
 
     def _handle_ConnectionDown (self, event):
