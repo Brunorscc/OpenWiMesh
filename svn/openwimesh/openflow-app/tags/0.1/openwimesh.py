@@ -163,8 +163,8 @@ def handle_PacketIn_Function (self, event):
 			    self.ini_topology_up_count += 1
                             log.debug("Topology UP from %s (%s) - time from startup: %.0f" % (sw, self.ini_topology_up_count, time.time() - self.startup_time))
 				
-                        log.debug("Nodes: %s" % self.net_graph.nodes(data=True))
-                        log.debug("Edges: %s" % self.net_graph.edges(data=True))
+                        #log.debug("Nodes: %s" % self.net_graph.nodes(data=True))
+                        #log.debug("Edges: %s" % self.net_graph.edges(data=True))
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         
                         try:
@@ -763,8 +763,8 @@ class openwimesh (EventMixin):
             log.debug("Actions: %s" % actions)
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
-            #print "a porta de entrada é %s" % in_port
-            #print "a porta de saida é %s" % out_port
+            print "a porta de entrada é %s" % in_port
+            print "a porta de saida é %s" % out_port
             for i,p in enumerate(out_port):
                 actions.append(['output'+str(i), p])
 
@@ -801,7 +801,7 @@ class openwimesh (EventMixin):
             if orig_src_ip in self.drop_fake and dst_node_ip == self.drop_fake[orig_src_ip][0]:
                 
                 print "%s" % (time.time() - self.drop_fake[orig_src_ip][1])
-                if time.time() - self.drop_fake[orig_src_ip][1] < 120:
+                if time.time() - self.drop_fake[orig_src_ip][1] < 180:
                     print "drop fake"
                     self._drop(event)
                     return
@@ -819,6 +819,14 @@ class openwimesh (EventMixin):
             self._drop(event)
             print "matei 1"
             return
+
+        if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
+            check_arp = self.gnet_graph.check_arp_req_to_ofctl(orig_src_hw,dst_node_ip)
+            if check_arp != "ok":
+                log.debug("DROP packet to ofctl: sw is %s ",check_arp)
+                self._drop(event)
+                print "matei dst ofctl"
+                return
 
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
@@ -916,7 +924,7 @@ class openwimesh (EventMixin):
             if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
                 dst_node_ip_path = ofctl_ip
                 self.fake_sw[orig_src_ip] = dst_node_ip
-                log.debug("%s will take on %s", dst_node_ip_path,orig_src_ip)
+                log.debug("%s will take over control %s", dst_node_ip_path,orig_src_ip)
                 print "qual foi %s" % dst_node_ip_path
             else:
                 print("Replying an ARP not related to the OFCTL: %s. depois return", arp_req_msg)
@@ -1039,7 +1047,7 @@ class openwimesh (EventMixin):
         print "changing"
         ofctl_ip = self.net_graph.get_ip_ofctl()
         ofctl_hw = self.net_graph.get_hw_ofctl()
-        log.debug("PARMETROS: %s %s" % (sw_ip_addr, ofctl_ip,))
+        log.debug("PARAMETROS: %s %s" % (sw_ip_addr, ofctl_ip,))
         sw_hw_addr = self.net_graph.get_by_attr('ip', sw_ip_addr)
         path = self.net_graph.path(ofctl_ip,sw_ip_addr)
         print path
@@ -1072,9 +1080,13 @@ class openwimesh (EventMixin):
 
         actions = [['set_dl_src', previous_sw], ['set_dl_dst', sw_hw_addr]]
 
-        actions.append(['output'+str(0), 1])
+        
 
-        #match_fields['dl_dst'] = EthAddr(previous_sw)
+        if previous_sw != ofctl_hw:
+            match_fields['dl_dst'] = EthAddr(previous_sw)
+            actions.append(['output'+str(0), 65528])
+        else:
+            actions.append(['output'+str(0), 1])
            
         (status, msg) = self._install_flow_entry(previous_sw, match_fields, actions, buffer_id)
         #os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_src=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,output:1" % (ofctl_ip,sw_ip_addr,previous_sw,sw_hw_addr))
@@ -1151,6 +1163,7 @@ class openwimesh (EventMixin):
 
         self.net_graph.add_node(sw_hw_addr, **attrs)
         try:
+            log.debug("addnode_time = %s" % openwimesh.addnode_time)
             del openwimesh.addnode_time[sw_hw_addr]
         except Exception as e:
             log.debug("Erro dele addnode_time: %s" % e)
@@ -1184,15 +1197,16 @@ class openwimesh (EventMixin):
 
         
 
-        if self.max_sw_capacity < self.net_graph.number_of_nodes():
-            print "calma"
-            th2 = Thread(target=self._make_ofctl, args=(sw_hw_addr,))
-            th2.start()
-        #se for fake de controlador mudar o controlador no switch
-        sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
-        if sw_ip_addr in self.fake_sw:
-            th3 = Thread(target=self._change_ofctl, args=(sw_ip_addr,))
-            th3.start()
+        # if self.max_sw_capacity < self.net_graph.number_of_nodes():
+        #     print "calma"
+        #     th2 = Thread(target=self._make_ofctl, args=(sw_hw_addr,))
+        #     th2.start()
+        # else:
+        #     #se for fake de controlador mudar o controlador no switch
+        #     sw_ip_addr = self.net_graph.get_node_ip(sw_hw_addr)
+        #     if sw_ip_addr in self.fake_sw:
+        #         th3 = Thread(target=self._change_ofctl, args=(sw_ip_addr,))
+        #         th3.start()
             
 
     def _handle_ConnectionDown (self, event):

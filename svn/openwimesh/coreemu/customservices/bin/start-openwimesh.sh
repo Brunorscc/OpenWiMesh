@@ -92,6 +92,13 @@ for i in $OWM_IFACES; do
     ovs-ofctl mod-port ofsw0 $i no-packet-in
 done
 
+log " PRI_MYIP = $PRI_MYIP"
+if [ "$PRI_MYIP" = "192.168.199.1" ]; then
+  PRI_MYIP=$OWM_OFCTL
+  log "ip = $PRI_MYIP"
+  ip addr add $PRI_MYIP/24 dev ofsw0
+fi
+
 if [ "$OWM_OFCTL" != "$PRI_MYIP" ]; then
 	
 	ovsif=$(ovs-ofctl show ofsw0 | egrep -o "[0-9]+\($PRI_IFACE\): addr" | cut -d'(' -f1 | tr -d ' ')
@@ -146,5 +153,5 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    if [ -z "$DISPLAY" ]; then
       export DISPLAY=:0
    fi
-   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$IPADDR --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$CID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 py &
+   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$OWM_OFCTL --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$CID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 py &
 fi

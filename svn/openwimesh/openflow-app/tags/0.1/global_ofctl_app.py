@@ -18,6 +18,7 @@ class global_ofcl_app(object):
 		self.cid = 0
 		self.ip_ofct_list=list(range(225,253))
 		self.becoming_ofctl = []
+		self.connecting_nodes = {}
 
 	def becoming_ofctl(self):
 		return self.becoming_ofctl
@@ -27,12 +28,22 @@ class global_ofcl_app(object):
 		self.becoming_ofctl.append(sw_mac)
 
 	def del_becoming_ofctl(self,sw_mac):
-		del self.becoming_ofctl
+		self.becoming_ofctl.remove(sw_mac)
 
 	def get_ofctl_free_ip(self):
 		free_ip="192.168.199."
 		free_ip+=str(self.ip_ofct_list.pop())
 		return free_ip
+
+	def check_arp_req_to_ofctl(self,orig_src_hw,dst_node_ip):
+		if orig_src_hw in self.nodes():
+			return "connected"
+		if orig_src_hw in self.connecting_nodes:
+			return "connecting"
+		self.connecting_nodes[orig_src_hw]= {'ofctl_ip': dst_node_ip}
+		return "ok"
+
+
 
 	def get_cid_free(self):
 		self.cid += 1
@@ -44,6 +55,8 @@ class global_ofcl_app(object):
 	@Pyro4.oneway
 	def add_node(self, hwaddr, ip=None, cid=None):
 		self.gnet_graph.add_node(hwaddr, ip, cid)
+		if hwaddr in self.connecting_nodes:
+			del self.connecting_nodes[hwaddr]
 
 	@Pyro4.oneway
 	def add_edge(self, source_mac, target_mac, signal=None, traffic_byt=None, speed_mbps=None, d_speed_mbps=None,residual_bw=None, weight=None, confirmed=True, wired=False):

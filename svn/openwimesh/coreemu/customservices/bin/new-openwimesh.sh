@@ -5,13 +5,14 @@
 
 # default values
 OWM_IFACES="eth0"
-OWM_OFCTL=$1
-URI=$2
-GLOBAL_OFCTL_IP=$3
-GLOBAL_OFCTL_HW=$4
-CID=$5
-CROSSDOMAIN=$6
-TYPE=$7
+TYPE=$1
+OWM_OFCTL=$2
+URI=$3
+GLOBAL_OFCTL_IP=$4
+GLOBAL_OFCTL_HW=$5
+CID=$6
+CROSSDOMAIN=$7
+
 
 # read configuration
 #[ -f openwimesh.conf ] && . openwimesh.conf
