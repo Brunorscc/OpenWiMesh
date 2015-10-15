@@ -36,14 +36,21 @@ class global_ofcl_app(object):
 		return free_ip
 
 	def check_arp_req_to_ofctl(self,orig_src_hw,dst_node_ip):
-		if orig_src_hw in self.nodes():
+		if orig_src_hw in self.gnet_graph.nodes():
 			return "connected"
 		if orig_src_hw in self.connecting_nodes:
 			return "connecting"
 		self.connecting_nodes[orig_src_hw]= {'ofctl_ip': dst_node_ip}
 		return "ok"
 
+	def check_creating_new_ofctl(self,cid):
+		nodes= get_node_list_by_attr('cid', cid)
+		if len(nodes) > 3:
+			pass
 
+	@Pyro4.oneway
+	def add_ofctl(self,cid,ofctl_hw,ofctl_ip):
+		self.gnet_graph.update_ofctl_list(cid,ofctl_hw,ofctl_ip)
 
 	def get_cid_free(self):
 		self.cid += 1

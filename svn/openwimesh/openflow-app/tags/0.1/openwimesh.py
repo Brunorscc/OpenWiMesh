@@ -1177,7 +1177,7 @@ class openwimesh (EventMixin):
             
 
             if directly_connected:
-                ofctl_hw_addr = self.net_graph.get_hw_ofctl()
+                #ofctl_hw_addr = self.net_graph.get_hw_ofctl()
                 log.debug("INFO: adding edge %s <-> %s", ofctl_hw_addr, sw_hw_addr)
                 self.net_graph.add_edge(ofctl_hw_addr, sw_hw_addr,
                         weight=NetGraph.DEFAULT_WEIGHT, wired=True)
@@ -1195,7 +1195,10 @@ class openwimesh (EventMixin):
         except Exception as e:
             log.debug("Error conn up (%s)" % e)
 
-        
+        if sw_hw_addr == ofctl_hw_addr:
+            ofctl_ip = self.net_graph.get_ip_ofctl()
+            cid = self.net_graph.get_cid_ofctl()
+            self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
 
         # if self.max_sw_capacity < self.net_graph.number_of_nodes():
         #     print "calma"
@@ -1307,6 +1310,10 @@ def _poller_check_conn(ofpox, interval, timeout):
         except Exception as e:
             log.debug("Error removing node from gnetgraph (%s)" % e)
 
+def _poller_check_global_task(ofpox, interval, timeout):
+    if not openwimesh.gnetgraph:
+        return
+
     
 def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, crossdomain=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
     core.openflow.miss_send_len = 1024
@@ -1316,3 +1323,4 @@ def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=
     except Exception as e:
         print "Erro no launch: %s" % e
     Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))
+    Timer(interval, _poller_check_global_task, recurring=True, args=(core.openflow,interval,swtout,))

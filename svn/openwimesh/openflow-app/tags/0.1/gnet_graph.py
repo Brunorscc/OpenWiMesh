@@ -17,6 +17,7 @@ class GNetGraph(NetGraph):
 
     def __init__(self):
         DiGraph.__init__(self)
+        self.ofctl_list = {}
         self.weight_selection_algorithm = None
         self.time_stamp = 0
 
@@ -47,6 +48,13 @@ class GNetGraph(NetGraph):
             if node[1].get(attr, None) == value:
                 return node[0]
         return None
+
+    def get_node_list_by_attr(self, attr, value):
+        node_list = []
+        for node in self.nodes(data=True):# porque data=True?
+            if node[1].get(attr, None) == value:
+                node_list.append(node[0])
+        return node_list
 
     def add_edge(self, source_mac, target_mac, signal=None,
             traffic_byt=None, speed_mbps=None, d_speed_mbps=None,

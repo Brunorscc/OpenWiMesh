@@ -55,7 +55,7 @@ class NetGraph(DiGraph, Controller, object):
     def __init__(self):
         DiGraph.__init__(self)
 
-        self.ofctl_list = []
+        self.ofctl_list = {}
         self.route_ins_table = {}
         self.weight_selection_algorithm = None
         # init time stamp
@@ -85,12 +85,11 @@ class NetGraph(DiGraph, Controller, object):
             return None
         return self.route_ins_table[dst_addr]['crossd_out_port'] 
 
-    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority):
-        l = [cid, hwaddr, ipaddr, priority]
-        self.ofctl_list.append(l)
+    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000):
+        self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority}
 
-    def print_ofctl_list(self):
-        print sorted( self.ofctl_list, key=lambda l: l[3])
+    #def print_ofctl_list(self):
+    #    print sorted( self.ofctl_list, key=lambda l: l[3])
 
     def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
             fdb=None):
