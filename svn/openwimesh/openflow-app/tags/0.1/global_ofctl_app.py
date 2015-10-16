@@ -4,7 +4,7 @@ import time
 from gnet_graph import GNetGraph
 import os
 import unittest
-
+import random
 
 
 @Pyro4.expose(instance_mode="single")
@@ -20,10 +20,7 @@ class global_ofcl_app(object):
 		self.becoming_ofctl = []
 		self.connecting_nodes = {}
 
-	def becoming_ofctl(self):
-		return self.becoming_ofctl
 
-	@Pyro4.oneway
 	def add_becoming_ofctl(self,sw_mac):
 		self.becoming_ofctl.append(sw_mac)
 
@@ -44,9 +41,23 @@ class global_ofcl_app(object):
 		return "ok"
 
 	def check_creating_new_ofctl(self,cid):
-		nodes= get_node_list_by_attr('cid', cid)
-		if len(nodes) > 3:
-			pass
+		nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
+		if cid not in self.gnet_graph.ofctl_list:
+			return None
+
+		#if sum([ i in nodes for i in self.becoming_ofctl]):
+
+
+		ofctl_hw = self.gnet_graph.ofctl_list[cid]['hwaddr']
+		nodes.remove(ofctl_hw)
+		if len(nodes) - sum([ i in nodes for i in self.becoming_ofctl]) > 2:			
+			new_ofctl_hw = random.choice(nodes)
+			if new_ofctl_hw in self.becoming_ofctl:
+				return None
+			self.add_becoming_ofctl(new_ofctl_hw)
+			return new_ofctl_hw
+		
+		return None
 
 	@Pyro4.oneway
 	def add_ofctl(self,cid,ofctl_hw,ofctl_ip):

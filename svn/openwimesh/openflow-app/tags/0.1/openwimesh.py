@@ -242,11 +242,34 @@ class openwimesh (EventMixin):
     gshow_layout = None
     show_ani = None
     gshow_ani = None
-    global_ofctl_uri = None
+    globalofctluri = None
 
     @classmethod
     def who_is_globalctl(cls):
        print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_global_ofctl(), openwimesh.netgraph.get_hw_global_ofctl() )
+
+    @classmethod
+    def make_ofctl(cls,new_ofctl_hw):#self.gnet_graph.add_add_becoming_ofctl(new_ofctl_hw)
+        time.sleep(1)
+        sw_ip = openwimesh.netgraph.get_node_ip(new_ofctl_hw)
+        new_ofctl_ip = openwimesh.gnetgraph.get_ofctl_free_ip()
+        print "%s is free" % new_ofctl_ip
+        ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
+        path = openwimesh.gnetgraph.path(ofctl_ip,sw_ip)
+        print "global path %s -> %s -> %s" % (ofctl_ip,path,sw_ip)
+        i = path.index(new_ofctl_hw)
+        crossdomain_sw = path[i-1]
+        openwimesh.netgraph.add_route_ins(sw_ip, crossdomain_sw,new_ofctl_hw,1)
+        openwimesh.netgraph.add_route_ins(new_ofctl_ip, crossdomain_sw,new_ofctl_hw,1)
+        global_ofctl_ip = openwimesh.gnetgraph.get_ip_addr()
+        global_ofctl_hw = openwimesh.gnetgraph.get_hw_addr()
+        cid = openwimesh.gnetgraph.get_cid_free()
+
+        log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+
+        os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s " % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
+
 
     @classmethod
     def add_node(cls,new_hw, new_ip, border_hw):
@@ -389,6 +412,7 @@ class openwimesh (EventMixin):
         openwimesh.directlyconnectednodes = self.directly_connected_nodes
 
         self.global_ofctl_uri = uri
+        openwimesh.globalofctluri = self.global_ofctl_uri
         self.gnet_graph = Pyro4.Proxy(self.global_ofctl_uri)         # get a Pyro proxy to the greeting object
         openwimesh.gnetgraph = self.gnet_graph
         #print(self.gnet_graph.get_fortune("bahia"))
@@ -1094,27 +1118,7 @@ class openwimesh (EventMixin):
         print "fim do fake"
 
 
-    def _make_ofctl(self,new_ofctl_hw):
-        #self.gnet_graph.add_add_becoming_ofctl(new_ofctl_hw)
-        time.sleep(1)
-        sw_ip = self.net_graph.get_node_ip(new_ofctl_hw)
-        new_ofctl_ip = self.gnet_graph.get_ofctl_free_ip()
-        print "%s is free" % new_ofctl_ip
-        ofctl_ip = self.net_graph.get_ip_ofctl()
-        path = self.gnet_graph.path(ofctl_ip,sw_ip)
-        i = path.index(new_ofctl_hw)
-        crossdomain_sw = path[i-1]
-        self.net_graph.add_route_ins(sw_ip, crossdomain_sw,new_ofctl_hw,1)
-        self.net_graph.add_route_ins(new_ofctl_ip, crossdomain_sw,new_ofctl_hw,1)
-        global_ofctl_ip = self.gnet_graph.get_ip_addr()
-        global_ofctl_hw = self.gnet_graph.get_hw_addr()
-        cid = self.gnet_graph.get_cid_free()
-
-        log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
-
-        os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s " % (sw_ip, new_ofctl_ip, self.global_ofctl_uri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
-        #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
-
+    
     def _async_add_edge(self,node1,node2):
         self.gnet_graph.add_edge(node1, node2,
                         weight=NetGraph.DEFAULT_WEIGHT, wired=True)
@@ -1313,6 +1317,14 @@ def _poller_check_conn(ofpox, interval, timeout):
 def _poller_check_global_task(ofpox, interval, timeout):
     if not openwimesh.gnetgraph:
         return
+
+    cid = openwimesh.netgraph.get_cid_ofctl()
+    new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
+    #print new_ofctl_hw
+    if new_ofctl_hw:
+        print "calma"
+        th = Thread(target=openwimesh.make_ofctl, args=(new_ofctl_hw,))
+        th.start()
 
     
 def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, crossdomain=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values

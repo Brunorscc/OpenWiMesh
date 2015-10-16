@@ -34,6 +34,9 @@ class GNetGraph(NetGraph):
         else:
             return None
 
+    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000):
+        self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority}
+
     def get_fortune(self, name):
         return "Hello, {0}. Here is your fortune message:\n" \
                "Tomorrow's lucky number is 12345678.".format(name)
@@ -42,6 +45,12 @@ class GNetGraph(NetGraph):
         if n not in self.nodes():
             return
         DiGraph.remove_node(self, n)
+
+    def get_hw_in_ofctl_list(self,ofctl_ip):
+        for cid in self.ofctl_list:
+            if self.ofctl_list[cid]['ipaddr'] == ofctl_ip:
+                return self.ofctl_list[cid]['hwaddr']
+        return None
 
     def get_by_attr(self, attr, value):
         for node in self.nodes(data=True):# porque data=True?
@@ -77,9 +86,15 @@ class GNetGraph(NetGraph):
     def path(self, src_ip, dst_ip):
         src_mac = self.get_by_attr('ip', src_ip)
         dst_mac = self.get_by_attr('ip', dst_ip)
-        
-        if src_mac is None or dst_mac is None:
-            return []
+
+        if src_mac is None:
+            src_mac = self.get_hw_in_ofctl_list(src_ip)
+            if src_mac is None:
+                return []
+        if dst_mac is None:
+            dst_mac = self.get_hw_in_ofctl_list(dst_ip)
+            if dst_mac is None:
+                return []
 
         try:
             return shortest_path(self, src_mac, dst_mac, 'weight')
