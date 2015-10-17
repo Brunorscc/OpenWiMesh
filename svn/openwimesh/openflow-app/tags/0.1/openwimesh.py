@@ -259,8 +259,8 @@ class openwimesh (EventMixin):
         print "global path %s -> %s -> %s" % (ofctl_ip,path,sw_ip)
         i = path.index(new_ofctl_hw)
         crossdomain_sw = path[i-1]
-        openwimesh.netgraph.add_route_ins(sw_ip, crossdomain_sw,new_ofctl_hw,1)
-        openwimesh.netgraph.add_route_ins(new_ofctl_ip, crossdomain_sw,new_ofctl_hw,1)
+        openwimesh.netgraph.add_route_ins(sw_ip, crossdomain_sw,new_ofctl_hw)#destino ip do sw
+        openwimesh.netgraph.add_route_ins(new_ofctl_ip, crossdomain_sw,new_ofctl_hw)#destino ip do controlador
         global_ofctl_ip = openwimesh.gnetgraph.get_ip_addr()
         global_ofctl_hw = openwimesh.gnetgraph.get_hw_addr()
         cid = openwimesh.gnetgraph.get_cid_free()
@@ -433,9 +433,9 @@ class openwimesh (EventMixin):
 
         try:
             if ofip != ofglobalip:
-                self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain,1)
-                self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
-                self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+                self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain)#destino global_app
+                #self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
+                #self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
                 pass
                 #self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
@@ -859,18 +859,18 @@ class openwimesh (EventMixin):
 
         
         if not dst_node_hw:
-            dst_node_hw = self.net_graph.get_crossdomain_sw(dst_node_ip)
+            dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
             if not dst_node_hw:
-                if self.net_graph.get_ip_ofctl() == dst_node_ip:
-                    dst_node_hw = self.net_graph.get_hw_ofctl()
-                if not dst_node_hw:
-                    self._send_to_global(event)
-                    log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
-                    self._drop(event)
-                    self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
-                    self.not_in_graph.append(dst_node_ip)
-                    print "matei 2"
-                    return
+                #if self.net_graph.get_ip_ofctl() == dst_node_ip:
+                #    dst_node_hw = self.net_graph.get_hw_ofctl()
+                #if not dst_node_hw:
+                self._send_to_global(event)
+                log.debug("DROP packet: unknown destination %s (not in the graph)", dst_node_ip)
+                self._drop(event)
+                self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
+                self.not_in_graph.append(dst_node_ip)
+                print "matei 2"
+                return
 
         if self.net_graph.get_ip_ofctl() == dst_node_ip and recv_node_hw == self.net_graph.get_hw_ofctl():
             recv_node_ip = self.net_graph.get_ip_ofctl()

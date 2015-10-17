@@ -61,29 +61,29 @@ class NetGraph(DiGraph, Controller, object):
         # init time stamp
         self.time_stamp = 0
 
-    def add_route_ins(self, dst_addr, crossd_hw, dst_sw, crossd_out_port):
-        self.route_ins_table[dst_addr] = {'crossd_hw': crossd_hw, 'dst_sw': dst_sw, 'crossd_out_port': crossd_out_port }
+    def add_route_ins(self, dst_ip, my_crossd_hw, dst_crossd_hw, last_update=time()):
+        self.route_ins_table[dst_ip] = {'my_crossd_hw': my_crossd_hw, 'dst_crossd_hw': dst_crossd_hw, 'last_update': last_update }
 
     def get_crossd_by_attr(self, attr, value):
-        for dst_addr in self.route_ins_table:
-            if self.route_ins_table[dst_addr][attr] == value:
-                return dst_addr
+        for dst_ip in self.route_ins_table:
+            if self.route_ins_table[dst_ip][attr] == value:
+                return dst_ip
         return None
 
-    def get_crossdomain_sw(self,dst_addr):
-        if dst_addr not in self.route_ins_table:
+    def get_my_crossdomain_sw(self,dst_ip):
+        if dst_ip not in self.route_ins_table:
             return None
-        return self.route_ins_table[dst_addr]['crossd_hw']
+        return self.route_ins_table[dst_ip]['my_crossd_hw']
 
-    def get_crossdomain_dst_sw(self,dst_addr):
-        if dst_addr not in self.route_ins_table:
+    def get_dst_crossdomain_sw(self,dst_ip):
+        if dst_ip not in self.route_ins_table:
             return None
-        return self.route_ins_table[dst_addr]['dst_sw']       
+        return self.route_ins_table[dst_ip]['dst_crossd_hw']       
 
-    def get_crossdomain_out_port(self,dst_addr):
-        if dst_addr not in self.route_ins_table:
+    def get_crossdomain_last_update(self,dst_ip):
+        if dst_ip not in self.route_ins_table:
             return None
-        return self.route_ins_table[dst_addr]['crossd_out_port'] 
+        return self.route_ins_table[dst_ip]['last_update'] 
 
     def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000):
         self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority}
@@ -114,6 +114,9 @@ class NetGraph(DiGraph, Controller, object):
         self.weight_selection_algorithm = int(algorithm)
 
     def get_by_attr(self, attr, value):
+        if attr == 'ip' and value == self.get_ip_ofctl():
+            return self.get_hw_ofctl()
+
         for node in self.nodes(data=True):# porque data=True?
             if node[1].get(attr, None) == value:
                 return node[0]
@@ -202,11 +205,11 @@ class NetGraph(DiGraph, Controller, object):
             if ofctl_ip == dst_ip:
                 dst_mac = self.get_hw_ofctl()
             else:
-                dst_mac = self.get_crossdomain_sw(dst_ip)
+                dst_mac = self.get_my_crossdomain_sw(dst_ip)
                 if dst_mac is not None:
                     domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
                     if len(domain_path) != 0:
-                        dst_sw = self.get_crossdomain_dst_sw(dst_ip)
+                        dst_sw = self.get_dst_crossdomain_sw(dst_ip)
                         domain_path.append(dst_sw)
                     return domain_path
                 else:
