@@ -59,6 +59,17 @@ class global_ofcl_app(object):
 		
 		return None
 
+	def get_crossdomain(self,src_ip,dst_ip,cid):
+		path = self.gnet_graph.path(src_ip,dst_ip)
+		if len(path)== 0:
+			return None
+		for i,sw in enumerate(path):
+			if self.gnet_graph.get_node_cid(path[i+1]) != cid:
+				crossd = {'my_sw': path[i], 'dst_sw': path[i+1]}
+				return crossd
+			
+
+
 	@Pyro4.oneway
 	def add_ofctl(self,cid,ofctl_hw,ofctl_ip):
 		self.gnet_graph.update_ofctl_list(cid,ofctl_hw,ofctl_ip)

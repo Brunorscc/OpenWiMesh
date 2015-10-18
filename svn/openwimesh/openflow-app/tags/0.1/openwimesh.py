@@ -809,6 +809,21 @@ class openwimesh (EventMixin):
     def _send_to_global(self, event):
         print "oi"
 
+    def _get_crossdomain(self,recv_node_ip,dst_node_ip):
+        log.debug("Asking global_app who is %s ",dst_node_ip)
+        dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
+        if not dst_node_hw:
+            crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
+            if crossd is not None:
+                log.debug("Add crossdomain with destination %s between %s and %s",dst_node_ip ,crossd['my_sw'],crossd['dst_sw'])
+                self.net_graph.add_route_ins(dst_node_ip,crossd['my_sw'],crossd['dst_sw'])
+                dst_node_hw = crossd['my_sw']
+            else:
+                log.debug("%s not found at global graph", dst_node_ip)
+                return None
+
+        return dst_node_hw
+
     def _async_add_edge_tmp(self,node1,node2):
         self.gnet_graph.add_edge(node1, node2,
                     weight=10*NetGraph.DEFAULT_WEIGHT)
@@ -859,7 +874,8 @@ class openwimesh (EventMixin):
 
         
         if not dst_node_hw:
-            dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
+            #dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
+            dst_node_hw = self._get_crossdomain(recv_node_ip,dst_node_ip)
             if not dst_node_hw:
                 #if self.net_graph.get_ip_ofctl() == dst_node_ip:
                 #    dst_node_hw = self.net_graph.get_hw_ofctl()
