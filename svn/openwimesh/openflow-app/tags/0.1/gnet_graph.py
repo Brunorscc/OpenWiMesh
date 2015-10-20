@@ -34,8 +34,13 @@ class GNetGraph(NetGraph):
         else:
             return None
 
-    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000):
-        self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority}
+    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000,last_update=time()):
+        self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority, 'last_update': last_update}
+
+    def remove_ofctl(self,cid):
+        if cid in self.ofctl_list:
+            del self.ofctl_list[cid]
+        return
 
     def get_fortune(self, name):
         return "Hello, {0}. Here is your fortune message:\n" \

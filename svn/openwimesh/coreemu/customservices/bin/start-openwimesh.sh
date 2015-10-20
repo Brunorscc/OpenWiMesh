@@ -37,10 +37,10 @@ PRI_MASK=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $4}' | cut -d
 #   GC_DEST_IP=$OWM_OFCTL
 # fi
 
-if [ "$PRI_MYIP" = "192.168.199.5" ]; then
-  OWM_OFCTL="192.168.199.252"
-  GC_DEST_IP=$OWM_OFCTL
-fi
+# if [ "$PRI_MYIP" = "192.168.199.5" ]; then
+#   OWM_OFCTL="192.168.199.252"
+#   GC_DEST_IP=$OWM_OFCTL
+# fi
 
 if [ -x `which invoke-rc.d` ]
 then
@@ -127,9 +127,9 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    HWADDR=$(LANG=C /sbin/ifconfig ofsw0 2>/dev/null | egrep -o "HWaddr [^ ]*" | cut -d" " -f2)
    CID="0"
    PRIORITY="0"
-   GLOBAL_OFCTL_IP="192.168.199.254"
-   if [ "$OWM_OFCTL" = "$GLOBAL_OFCTL_IP" ]; then
-      CID="0"
+   GLOBAL_OFCTL_IP="192.168.199.1"
+   if [ "$IPADDR" = "$GLOBAL_OFCTL_IP" ]; then
+      GCID="0"
       PRIORITY="0"
       log "Starting openflow controller global app server"
       python /home/openwimesh/openwimesh/openflow-app/global_ofctl_app.py 2>&1 &
@@ -153,5 +153,5 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    if [ -z "$DISPLAY" ]; then
       export DISPLAY=:0
    fi
-   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$OWM_OFCTL --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$CID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 py &
+   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$OWM_OFCTL --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$GCID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 py &
 fi

@@ -168,7 +168,8 @@ def handle_PacketIn_Function (self, event):
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         
                         try:
-                            th = Thread(target=self.gnet_graph.update_edges_of_node, args=(sw, assoc_list,))
+                            cid = self.net_graph.get_cid_ofctl()
+                            th = Thread(target=self.gnet_graph.update_edges_of_node, args=(cid,sw, assoc_list,))
                             th.start()
                         except Exception as e:
                             log.debug("Error update gnet edges (%s)" % e)
@@ -432,12 +433,12 @@ class openwimesh (EventMixin):
         #th.start()
 
         try:
-            if ofip != ofglobalip:
+            if gcid != cid:
                 self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain)#destino global_app
                 #self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
                 #self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
-                pass
+                self.gnet_graph.check_ofctl_conn()
                 #self.net_graph.add_route_ins('192.168.199.252', '00:00:00:aa:00:02','00:00:00:aa:00:03',1)
         except Exception as e:
             print "erro add_route_ins: %s" % e
@@ -860,7 +861,7 @@ class openwimesh (EventMixin):
             return
 
         if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
-            check_arp = self.gnet_graph.check_arp_req_to_ofctl(orig_src_hw,dst_node_ip)
+            check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip)
             if check_arp != "ok":
                 log.debug("DROP packet to ofctl: sw is %s ",check_arp)
                 self._drop(event)
@@ -1243,9 +1244,9 @@ class openwimesh (EventMixin):
         except Exception as e:
             log.debug("Error removing node from graph at connDown(%s)" % e)
         try:
-            #th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,self.net_graph.get_cid_ofctl(),))
-            #th.start()
-            print("gnet remove node err: %s " % self.gnet_graph.remove_node(sw_mac,self.net_graph.get_cid_ofctl()))
+            th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,self.net_graph.get_cid_ofctl(),))
+            th.start()
+            #print("gnet remove node err: %s " % self.gnet_graph.remove_node(sw_mac,self.net_graph.get_cid_ofctl()))
         except Exception as e:
             log.debug("Error conn down node from gnetgraph (%s)" % e)
 
@@ -1324,9 +1325,9 @@ def _poller_check_conn(ofpox, interval, timeout):
             log.debug("Error removing node from graph (%s): %s" % (n,e))
 
         try:
-            #th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,openwimesh.netgraph.get_cid_ofctl(),))
-            #th.start()
-            print("gn err: %s" % openwimesh.gnetgraph.remove_node(n,openwimesh.netgraph.get_cid_ofctl()))
+            th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,openwimesh.netgraph.get_cid_ofctl(),))
+            th.start()
+            #print("gn err: %s" % openwimesh.gnetgraph.remove_node(n,openwimesh.netgraph.get_cid_ofctl()))
         except Exception as e:
             log.debug("Error removing node from gnetgraph (%s)" % e)
 
@@ -1335,6 +1336,10 @@ def _poller_check_global_task(ofpox, interval, timeout):
         return
 
     cid = openwimesh.netgraph.get_cid_ofctl()
+    ofctl_hw = openwimesh.netgraph.get_hw_ofctl()
+    ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
+    openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
+    log.debug("Checking if there are tasks from global_app")
     new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
     #print new_ofctl_hw
     if new_ofctl_hw:

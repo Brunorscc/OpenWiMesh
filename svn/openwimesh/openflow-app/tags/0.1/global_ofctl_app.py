@@ -5,12 +5,19 @@ from gnet_graph import GNetGraph
 import os
 import unittest
 import random
+import logging
+
 
 
 @Pyro4.expose(instance_mode="single")
 class global_ofcl_app(object):
 	"""docstring for global_ofcl_app"""
+	# timeout for confirm an edge
+	CONFIRM_OFCTL_TOUT = 10
+
 	def __init__(self):
+
+		logging.info('Starting global_ofcl_app')
 		self.gnet_graph = GNetGraph()
 		self.nome = None
 		self.ip_addr = ni.ifaddresses('ofsw0')[2][0]['addr']
@@ -20,8 +27,44 @@ class global_ofcl_app(object):
 		self.becoming_ofctl = []
 		self.connecting_nodes = {}
 
+	@Pyro4.oneway
+	def check_ofctl_conn(self):
+		while True :
+			logging.debug('checking ofctl connection')
+			if self.gnet_graph.ofctl_list:
+				dead = []
+				try:
+					for cid in self.gnet_graph.ofctl_list:
+						now = time.time()
+						#logging.debug("now is %s",now)
+						#logging.debug("ofctl %s time %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
+						logging.debug("delay from %s is %s",cid, now - self.gnet_graph.ofctl_list[cid]['last_update'])
+						
+						if now - self.gnet_graph.ofctl_list[cid]['last_update'] > self.CONFIRM_OFCTL_TOUT:
+							dead.append(cid)
+							#ofctl_hw = self.gnet_graph.ofctl_list[cid]['hwaddr']
+					
+					for cid in dead:
+						nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
+						for node in nodes:
+							logging.debug('Removing node %s',node)
+							self.gnet_graph.remove_node(node)
+						logging.debug('Removing ofctl %s', cid)
+						ofctl_ip = self.gnet_graph.ofctl_list[cid]['ipaddr']
+						self.ip_ofct_list.append(ofctl_ip.split('.')[3])
+						self.gnet_graph.remove_ofctl(cid)
+
+					logging.debug("Nodes %s",self.gnet_graph.nodes(data=True))
+							
+				except Exception as e:
+					logging.debug("Problema %s",e)
+					
+			logging.debug("sleeping")
+			time.sleep(5)
+
 
 	def add_becoming_ofctl(self,sw_mac):
+		logging.debug('%s will be an ofctl',sw_mac)
 		self.becoming_ofctl.append(sw_mac)
 
 	def del_becoming_ofctl(self,sw_mac):
@@ -32,7 +75,8 @@ class global_ofcl_app(object):
 		free_ip+=str(self.ip_ofct_list.pop())
 		return free_ip
 
-	def check_arp_req_to_ofctl(self,orig_src_hw,dst_node_ip):
+	def check_arp_req_to_ofctl(self,cid,orig_src_hw,dst_node_ip):
+		logging.debug('ARP request from ofctl %s, who-has-%s-tell-%s',cid,dst_node_ip,orig_src_hw)
 		if orig_src_hw in self.gnet_graph.nodes():
 			return "connected"
 		if orig_src_hw in self.connecting_nodes:
@@ -45,6 +89,7 @@ class global_ofcl_app(object):
 		if cid not in self.gnet_graph.ofctl_list:
 			return None
 
+		
 		#if sum([ i in nodes for i in self.becoming_ofctl]):
 
 
@@ -60,19 +105,25 @@ class global_ofcl_app(object):
 		return None
 
 	def get_crossdomain(self,src_ip,dst_ip,cid):
+		logging.debug('ofctl %s request the crossdomain link for reach %s',cid,dst_ip)
 		path = self.gnet_graph.path(src_ip,dst_ip)
 		if len(path)== 0:
+			logging.debug('There is no path %s -> %s ',src_ip,dst_ip)
 			return None
 		for i,sw in enumerate(path):
 			if self.gnet_graph.get_node_cid(path[i+1]) != cid:
 				crossd = {'my_sw': path[i], 'dst_sw': path[i+1]}
+				logging.debug('The path from %s to %s is through the crossdomain link(%s-%s)',src_ip,dst_ip,path[i],path[i+1])
 				return crossd
-			
+
 
 
 	@Pyro4.oneway
 	def add_ofctl(self,cid,ofctl_hw,ofctl_ip):
+		logging.info('the ofctl %s, %s, %s',cid,ofctl_ip,ofctl_hw)
 		self.gnet_graph.update_ofctl_list(cid,ofctl_hw,ofctl_ip)
+		self.gnet_graph.ofctl_list[cid]['last_update'] = time.time()
+		logging.debug("ofctl %s time %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
 
 	def get_cid_free(self):
 		self.cid += 1
@@ -83,6 +134,7 @@ class global_ofcl_app(object):
 
 	@Pyro4.oneway
 	def add_node(self, hwaddr, ip=None, cid=None):
+		logging.debug('Adding node %s at ofctl %s',hwaddr,cid)
 		self.gnet_graph.add_node(hwaddr, ip, cid)
 		if hwaddr in self.connecting_nodes:
 			del self.connecting_nodes[hwaddr]
@@ -90,24 +142,29 @@ class global_ofcl_app(object):
 	@Pyro4.oneway
 	def add_edge(self, source_mac, target_mac, signal=None, traffic_byt=None, speed_mbps=None, d_speed_mbps=None,residual_bw=None, weight=None, confirmed=True, wired=False):
 
+		logging.debug('Adding edge %s -> %s',source_mac,target_mac)
 		self.gnet_graph.add_edge(source_mac, target_mac, signal, traffic_byt, speed_mbps, d_speed_mbps,residual_bw, weight, confirmed, wired)
 
-	#@Pyro4.oneway
+	@Pyro4.oneway
 	def remove_node(self, n, c):
 		cid = -1
 		try:
 			cid = self.gnet_graph.get_node_cid(n)
 			if cid == c:
+				logging.debug('Removing node %s',n)
 				self.gnet_graph.remove_node(n)
-				return "ok"
 		except Exception as e:
-			return "erro %s, n=%s,c=%s,cid=%s" % (e,n,c,cid)
+			logging.debug("erro removing node (%s), n=%s,c=%s,cid=%s",e,n,c,cid)
 
 	def get_node_edges_update_state(self, node, attr='signal'):
 		self.gnet_graph.get_node_edges_update_state(node, attr)
 
 	@Pyro4.oneway
-	def update_edges_of_node(self, node, assoc_list):
+	def update_edges_of_node(self,cid, node, assoc_list):
+		logging.debug("Update from ofctl %s",cid)
+		#logging.debug("ofctl %s time before %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
+		self.gnet_graph.ofctl_list[cid]['last_update'] = time.time()
+		#logging.debug("ofctl %s time after %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
 		self.gnet_graph.update_edges_of_node(node, assoc_list)
 
 	def get_time_stamp(self):
@@ -157,10 +214,12 @@ class global_ofcl_app(object):
 		return "My name is %s" % self.nome
 
 
+
+logging.basicConfig(filename='global_ofcl_app.log',level=logging.DEBUG)
 host = ni.ifaddresses('ofsw0')[2][0]['addr']
 daemon = Pyro4.Daemon(host=host,port=47922)                # make a Pyro daemon
 uri = daemon.register(global_ofcl_app,"global_ofcl_app")   # register the greeting maker as a Pyro object
-
+logging.info('The global_ofcl_app uri is %s',uri)
 fo = open("/tmp/uri.txt","wb")
 fo.write(str(uri) )
 fo.close()
