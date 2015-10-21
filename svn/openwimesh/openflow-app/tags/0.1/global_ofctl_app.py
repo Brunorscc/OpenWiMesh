@@ -22,10 +22,15 @@ class global_ofcl_app(object):
 		self.nome = None
 		self.ip_addr = ni.ifaddresses('ofsw0')[2][0]['addr']
 		self.hw_addr = ni.ifaddresses('ofsw0')[17][0]['addr']
-		self.cid = 0
+		self.cid_counter = 0
+		self.gcid = None
 		self.ip_ofct_list=list(range(225,253))
 		self.becoming_ofctl = []
 		self.connecting_nodes = {}
+
+	@Pyro4.oneway
+	def set_gcid(self,gcid):
+		self.gcid = gcid
 
 	@Pyro4.oneway
 	def check_ofctl_conn(self):
@@ -73,6 +78,7 @@ class global_ofcl_app(object):
 	def get_ofctl_free_ip(self):
 		free_ip="192.168.199."
 		free_ip+=str(self.ip_ofct_list.pop())
+		logging.debug("%s will release",free_ip)
 		return free_ip
 
 	def check_arp_req_to_ofctl(self,cid,orig_src_hw,dst_node_ip):
@@ -81,7 +87,12 @@ class global_ofcl_app(object):
 			return "connected"
 		if orig_src_hw in self.connecting_nodes:
 			return "connecting"
-		self.connecting_nodes[orig_src_hw]= {'ofctl_ip': dst_node_ip}
+
+		self.connecting_nodes[orig_src_hw]= {'cid': cid}
+		logging.debug("self.gnet_graph.ofctl_list[cid]['ipaddr'] != 192.168.199.254 is %s",(self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254'))
+		if self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254':
+			logging.debug("%s will take over control sw (%s)",self.gnet_graph.ofctl_list[cid]['ipaddr'],orig_src_hw)
+			return 'fake'
 		return "ok"
 
 	def check_creating_new_ofctl(self,cid):
@@ -100,6 +111,7 @@ class global_ofcl_app(object):
 			if new_ofctl_hw in self.becoming_ofctl:
 				return None
 			self.add_becoming_ofctl(new_ofctl_hw)
+			logging.debug("%s will be ofctl",new_ofctl_hw)
 			return new_ofctl_hw
 		
 		return None
@@ -124,10 +136,11 @@ class global_ofcl_app(object):
 		self.gnet_graph.update_ofctl_list(cid,ofctl_hw,ofctl_ip)
 		self.gnet_graph.ofctl_list[cid]['last_update'] = time.time()
 		logging.debug("ofctl %s time %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
+		del_becoming_ofctl(self,ofctl_hw)
 
 	def get_cid_free(self):
-		self.cid += 1
-		return self.cid
+		self.cid_counter += 1
+		return self.cid_counter
 
 	def get_fortune(self,name):
 		return self.gnet_graph.get_fortune(name)
@@ -150,7 +163,7 @@ class global_ofcl_app(object):
 		cid = -1
 		try:
 			cid = self.gnet_graph.get_node_cid(n)
-			if cid == c:
+			if cid == c and n not in self.becoming_ofctl:
 				logging.debug('Removing node %s',n)
 				self.gnet_graph.remove_node(n)
 		except Exception as e:
