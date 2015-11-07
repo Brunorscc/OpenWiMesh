@@ -65,6 +65,9 @@ extern "C" {
 #include <linux/nl80211.h>
 #include <time.h>
 
+// MONIT
+#define BUF_SIZE 256
+
 #define ETH_ALEN             6      // The ethernet address lenght in binary format
 #define MAX_SSID_LEN         50     // Char limit for an SSID
 #define UDP_PORT             1111   // UDP Port used to send a message to OpenFlow Controller. TODO: mudar formato do parametro de entrada para IP:Porta
@@ -122,12 +125,16 @@ int getIfIndex(const char *ifName, int *ifIndex);
 int getIfIPAddr(const char *ifName, char *ipAddr);
 int getChannelSurvey(char *wlan, associationListTp *associationsPt);
 int getWirelessBSSInfo(char *wlan, associationListTp *associationsPt);
+
+char *get_nth_line( FILE *f, int line_no );
+
 int sendUDPMessage(char *wlan, associationListTp *associationsPt, 
                    char *serverIPPort, unsigned long int totalBytes, bool emulMode);
 int sendUDPMsgPart(char *dstIpAddr,
                    short dstUdpPort,
                    char *message);
 int getEmulatedAssociationList(associationListTp *associationsPt);
+int getControlPlaneTotalBytes(long long unsigned int *totalBytes);
 int getEmulatedWiFiIntfTotalBytes(char* ifName, long long unsigned int *totalBytes);
 int checkOFSwitchConnStatus(bool isConnected, char* ofSwName, char *macVlanIntf);
 int getIntfOnOFSwitch(char* ofSwName, char **macVlanIntf);

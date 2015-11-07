@@ -67,6 +67,18 @@ log = core.getLogger()
 # time between arp-resquests that we don't reply again
 ARP_REQ_DELAY=10
 
+# MONITORING FILES
+#f_flu = open("dumpfluxos.txt", "w")
+#f_flu.write("Experiment,Switch,SRC_IP,DST_IP,SRC_PORT,DST_PORT,Packet_Count,Byte_Count,Duration_Sec,Duration_Nsec,Delta_Packet_Count,Delta_Byte_Count,Delta_Duration_Sec,Delta_Duration_Nsec\n")
+#f_flu.flush()
+        
+#f_lat = open("latencia.txt", "w")
+#f_lat.write("Switch,Timestamp,RTT\n")
+#f_lat.flush()
+
+#f_conv = open("tempo_convergencia.txt", "w")
+
+
 def handle_PacketIn_Function (self, event):
         """
         Handles packet in messages from some switch
@@ -246,6 +258,16 @@ class openwimesh (EventMixin):
     globalofctluri = None
     dropfake = None
     fakesw = None
+    startuptime = 0
+    monit_path = 0
+    f_lat = None
+    f_conv = None
+
+    #f_lat = open("/home/openwimesh/latencia/%s-latencia-ctrl-%s.txt" % (monit, ofip), "w")
+    #f_lat.write("Switch,Timestamp,RTT\n")
+    #f_lat.flush()
+
+    #f_conv = open("/home/openwimesh/monit/%s/tempo_convergencia-%s.txt" % (monit, ofip), "w")
 
     @classmethod
     def who_is_globalctl(cls):
@@ -254,23 +276,50 @@ class openwimesh (EventMixin):
     @classmethod
     def make_ofctl(cls,new_ofctl_hw):#self.gnet_graph.add_add_becoming_ofctl(new_ofctl_hw)
         #time.sleep(1)
-        sw_ip = openwimesh.netgraph.get_node_ip(new_ofctl_hw)
-        new_ofctl_ip = openwimesh.gnetgraph.get_ofctl_free_ip()
-        print "%s is free" % new_ofctl_ip
-        ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
-        path = openwimesh.gnetgraph.path(ofctl_ip,sw_ip)
-        print "global path %s -> %s -> %s" % (ofctl_ip,path,sw_ip)
-        i = path.index(new_ofctl_hw)
-        crossdomain_sw = path[i-1]
+        try:
+            sw_ip = openwimesh.netgraph.get_node_ip(new_ofctl_hw)
+            new_ofctl_ip = openwimesh.gnetgraph.get_ofctl_free_ip()
+        except Exception as e:
+            log.debug("falha receber IP do novo controlador %s",e)
+            openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
+            return 
+
+        try:
+            print "%s is free" % new_ofctl_ip
+            ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
+            path = openwimesh.gnetgraph.path(ofctl_ip,sw_ip)
+            print "global path %s -> %s -> %s" % (ofctl_ip,path,sw_ip)
+            i = path.index(new_ofctl_hw)
+            crossdomain_sw = path[i-1]
+        except Exception as e:
+            log.debug("falha receber PATH do novo controlador %s",e)
+            openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
+            return 
+
         openwimesh.netgraph.add_route_ins(sw_ip, crossdomain_sw,new_ofctl_hw)#destino ip do sw
         openwimesh.netgraph.add_route_ins(new_ofctl_ip, crossdomain_sw,new_ofctl_hw)#destino ip do controlador
-        global_ofctl_ip = openwimesh.gnetgraph.get_ip_addr()
-        global_ofctl_hw = openwimesh.gnetgraph.get_hw_addr()
-        cid = openwimesh.gnetgraph.get_cid_free()
+
+        try:
+            global_ofctl_ip = openwimesh.gnetgraph.get_ip_addr()
+            global_ofctl_hw = openwimesh.gnetgraph.get_hw_addr()
+            cid = openwimesh.gnetgraph.get_cid_free()
+        except Exception as e:
+            log.debug("falha receber IP do controlador global %s",e)
+            openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
+            return 
+
+        now = time.time()
+        openwimesh.f_conv.write("NEW-CONTROLLER: %s,%f,%f\n" % ( new_ofctl_hw , now , now - openwimesh.startuptime))
+        openwimesh.f_conv.flush()
 
         log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s " % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        try:
+            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, time.time()))
+        except Exception as e:
+            log.debug("falha ao criar controlador remoto %s",e)
+            openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
+            return 
         #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
         try:
             if sw_ip in openwimesh.fakesw:
@@ -409,7 +458,19 @@ class openwimesh (EventMixin):
                 log.debug("  %s -> %s" % (n, g.node[n]['ip']))
 
 
-    def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain):
+    def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain, monit):
+        
+
+        # MONITORING FILES
+        #f_flu = open("/home/openwimesh/dumpfluxos.txt", "w")
+        #f_flu.write("Experiment,Switch,SRC_IP,DST_IP,SRC_PORT,DST_PORT,Packet_Count,Byte_Count,Duration_Sec,Duration_Nsec,Delta_Packet_Count,Delta_Byte_Count,Delta_Duration_Sec,Delta_Duration_Nsec\n")
+        #f_flu.flush()
+        
+        self.f_latencia = open("/home/openwimesh/latencia/%s-16n-%s-lat" % (monit, ofip), "w")
+        self.f_conv = open("/home/openwimesh/tempo-converg/%s-n16-%s-conv" % (monit, ofip), "w")
+        openwimesh.f_lat = self.f_latencia
+        openwimesh.f_conv = self.f_conv
+
         self.listenTo(core.openflow)
 
         # create the graph
@@ -473,11 +534,15 @@ class openwimesh (EventMixin):
 
         # startup time
         self.startup_time = time.time()
+        openwimesh.startuptime = self.startup_time
+        openwimesh.f_conv.write("####OPENWIMESH CTRL STARTUP TIME####  \n%f\n" % (openwimesh.startuptime))
+        openwimesh.f_conv.write("MAC,TIMESTAMP,CONVERGENCE_DELAY\n")
+        openwimesh.f_conv.flush()
 
         #Quantidades de sw que este controlador pode gerenciar
         self.max_sw_capacity = 3
         
-	# topology update initial event counter
+	    # topology update initial event counter
         self.ini_topology_up_count = 0
         
         # thread counting variable
@@ -494,6 +559,9 @@ class openwimesh (EventMixin):
         
         # Set the weigth selection algorithm
         self.net_graph.set_ofctl_weight_selection_algorithm(algorithm)
+
+    def get_startup_time(self):
+        return self.startup_time
 
     def _async_call(self, param):
         time.sleep(20)
@@ -701,13 +769,26 @@ class openwimesh (EventMixin):
             return (False, "Unexpected error: " + str(e))
 
         return (True, "")
-  
-
 
 
     def _install_path(self, event, src_ip, dst_ip, match_fields, fwd_buffered_pkt = False):
         log.debug("_install_path called")
         #log.debug("Current installed paths:\n%s", self.ph.show())
+
+        # recv_node_hw: host who generated the packetin to controller
+        dpid = dpidToStr(event.dpid)
+        recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
+        if not recv_node_hw:
+            log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
+            self._drop(event)
+            return
+
+        recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
+
+        dst_node_hw = self.net_graph.get_by_attr('ip', dst_ip)
+
+        if not dst_node_hw:
+            dst_node_hw = self._get_crossdomain(recv_node_ip,dst_ip)
 
         path = self.net_graph.path(src_ip, dst_ip)
         #print (self.gnet_graph.path(src_ip,dst_ip))
@@ -1107,6 +1188,7 @@ class openwimesh (EventMixin):
 
     def _change_ofctl(self, sw_ip_addr):
         print "changing"
+        
         ofctl_ip = self.net_graph.get_ip_ofctl()
         ofctl_hw = self.net_graph.get_hw_ofctl()
         log.debug("PARAMETROS: %s %s" % (sw_ip_addr, ofctl_ip,))
@@ -1117,10 +1199,12 @@ class openwimesh (EventMixin):
         previous_sw = path[i-1]
         previous_ip = self.net_graph.get_node_ip(previous_sw)
 
+        now = time.time()
+
         os.system("bash /home/openwimesh/novo-controlador.sh 2 %s %s" % (sw_ip_addr, ofctl_ip))
         self.drop_fake[sw_ip_addr] = []
         self.drop_fake[sw_ip_addr].append(self.fake_sw[sw_ip_addr])
-        now = time.time()
+        
         self.drop_fake[sw_ip_addr].append(now)
         del self.fake_sw[sw_ip_addr]
         print "Fake = %s " % self.fake_sw
@@ -1131,7 +1215,7 @@ class openwimesh (EventMixin):
         #os.system("arp -d %s" % sw_ip_addr)
         #os.system("ovs-ofctl del-flows ofsw0 tcp,nw_dst=%s,tp_src=6633" % sw_ip_addr)
         #os.system("ovs-ofctl del-flows ofsw0 tcp,nw_src=%s,tp_dst=6633" % sw_ip_addr)
-        os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_dst=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,LOCAL" % (sw_ip_addr,ofctl_ip,ofctl_hw,ofctl_hw))
+        os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_dst=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,LOCAL,--monit=%s" % (sw_ip_addr,ofctl_ip,ofctl_hw,ofctl_hw, time.time()))
         match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
                 'nw_src' : ofctl_ip,
                 'nw_dst' : sw_ip_addr,
@@ -1172,7 +1256,10 @@ class openwimesh (EventMixin):
         """
         Handles a switch that has established a connection to the controller
         """
-        log.debug("Connection UP from %02d (%s) - time from startup: %.0f" % (event.dpid, event.connection, time.time() - self.startup_time))
+        log.debug("!@# Connection UP from %02d (%s) - time from startup: %f" % (event.dpid, event.connection, time.time() - self.startup_time))
+        openwimesh.f_conv.write("%s,%f,%f\n"%(event.connection, time.time(), time.time() - self.startup_time))
+        openwimesh.f_conv.flush()
+
         sw_hw_addr = None
         sw_ip_addr = None
 
@@ -1309,6 +1396,32 @@ class openwimesh (EventMixin):
         self.net_graph.add_node(hwaddr, ipaddr)
 
 
+def _handle_EchoReply (event):
+    """
+    Handler to calculate latency of each node from an echo reply
+    """
+    log.debug("Got echo reply")
+
+    dpid = dpidToStr(event.dpid)
+    sw_mac = openwimesh.netgraph.get_by_attr('dpid', dpid)
+    #print "SW_MAC = %s"%(sw_mac)
+    #log.debug("DPID: %s SW_MAC = %s", dpid, sw_mac)
+    if sw_mac:
+        now = time.time()
+        latency = now - openwimesh.netgraph.get_node_timestamp(sw_mac)
+
+        now_date = time.strftime("%y-%m-%d %H:%M:%S",time.gmtime())
+        
+        openwimesh.netgraph.set_node_latency(sw_mac, latency * 1000)
+        #print "!@# Rcvd Echo reply from %s: Latency= %f" %(sw_mac, openwimesh.netgraph.get_node_latency(sw_mac))
+        openwimesh.f_lat.write("%s,%s,%f\n"%(sw_mac, now_date, latency * 1000))
+        openwimesh.f_lat.flush()
+        #print "Node latency: %f"%(openwimesh.netgraph.get_node_latency(sw_mac))
+    else:
+        print "Drop echo reply - MAC addr matches no node in graph"
+
+#\TODO: Handle statistics table/port/flows
+
 def _poller_check_conn(ofpox, interval, timeout):
     if not openwimesh.netgraph:
         return
@@ -1343,6 +1456,10 @@ def _poller_check_conn(ofpox, interval, timeout):
             continue
 
         # if the node is connected, send an echo request message
+        now = time.time()
+
+        openwimesh.netgraph.set_node_timestamp(n, now)
+        #print "Timestamp to %s sent" % openwimesh.netgraph.node[n]
         openwimesh.netgraph.node[n]['conn'].send(er)
 
 
@@ -1381,7 +1498,9 @@ def _poller_check_global_task(ofpox, interval, timeout):
     cid = openwimesh.netgraph.get_cid_ofctl()
     ofctl_hw = openwimesh.netgraph.get_hw_ofctl()
     ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
+    nodes = openwimesh.netgraph.nodes()
     openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
+    openwimesh.gnetgraph.update_nodes(cid, nodes)
     log.debug("Checking if there are tasks from global_app")
     new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
     #print new_ofctl_hw
@@ -1391,12 +1510,13 @@ def _poller_check_global_task(ofpox, interval, timeout):
         th.start()
 
     
-def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, crossdomain=None, interval=5, swtout=3, algorithm=0): # interval=5, swtout=3 were the original values
+def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, crossdomain=None, interval=5, swtout=3, algorithm=0, monit=0): # interval=5, swtout=3 were the original values
     core.openflow.miss_send_len = 1024
     core.openflow.clear_flows_on_connect = False
     try:
-        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain)
+        core.registerNew(openwimesh, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain, monit)
     except Exception as e:
         print "Erro no launch: %s" % e
     Timer(interval, _poller_check_conn, recurring=True, args=(core.openflow,interval,swtout,))
     Timer(interval, _poller_check_global_task, recurring=True, args=(core.openflow,interval,swtout,))
+    core.openflow.addListenerByName("EchoReply", _handle_EchoReply)

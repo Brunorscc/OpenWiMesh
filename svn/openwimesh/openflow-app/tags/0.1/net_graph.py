@@ -91,14 +91,23 @@ class NetGraph(DiGraph, Controller, object):
     #def print_ofctl_list(self):
     #    print sorted( self.ofctl_list, key=lambda l: l[3])
 
+    #def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
+    #        fdb=None):
     def add_node(self, hwaddr, ip=None, dpid=None, conn=None, ports=None,
-            fdb=None):
+           fdb=None, t_stamp=0, latency=0 ):
         if ports is None:
             ports = []
         if fdb is None:
             fdb = {}
+
+        ### added timestamp and latency variables
+        #DiGraph.add_node(self, hwaddr, ip=ip, dpid=dpid, conn=conn,
+        #        ports=ports, fdb=fdb, name=hwaddr[12:] )
+                ### added timestamp and latency variables
         DiGraph.add_node(self, hwaddr, ip=ip, dpid=dpid, conn=conn,
-                ports=ports, fdb=fdb, name=hwaddr[12:])
+                ports=ports, fdb=fdb, name=hwaddr[12:], t_stamp=t_stamp,
+                latency=latency )
+
         # update time stamp
         self.time_stamp += 1
 
@@ -175,6 +184,34 @@ class NetGraph(DiGraph, Controller, object):
         node = self.node[hwaddr]
         if node:
             node['ip'] = ip
+
+########## MONIT
+    def get_node_timestamp(self, hwaddr):
+        node = self.node[hwaddr]
+        if node:
+            return node['t_stamp']
+        else:
+            return None
+
+    def set_node_timestamp(self, hwaddr, t_stamp):
+        node = self.node[hwaddr]
+        if node:
+            node['t_stamp'] = t_stamp
+
+    def get_node_latency(self, hwaddr):
+        node = self.node[hwaddr]
+        if node:
+            return node['latency']
+        else:
+            return None
+
+    def set_node_latency(self, hwaddr, latency):
+        node = self.node[hwaddr]
+        if node:
+            node['latency'] = latency
+
+#################
+
     def get_out_port_no(self, node, dl_dst):
         if node not in self.nodes():
             return None

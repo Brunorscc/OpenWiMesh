@@ -540,6 +540,79 @@ nla_put_failure:
     return err;
 }
 
+char *get_nth_line( FILE *f, int line_no )
+{
+    char   buf[ BUF_SIZE ];
+    size_t curr_alloc = BUF_SIZE, curr_ofs = 0;
+    char   *line      = malloc( BUF_SIZE );
+    int    in_line    = line_no == 1;
+    size_t bytes_read;
+ 
+    /* Illegal to ask for a line before the first one. */
+    if ( line_no < 1 )
+        return NULL;
+ 
+    /* Handle out-of-memory by returning NULL */
+    if ( !line )
+        return NULL;
+ 
+    /* Scan the file looking for newlines */
+    while ( line_no && 
+            ( bytes_read = fread( buf, 1, BUF_SIZE, f ) ) > 0 )
+    {
+        int i;
+ 
+        for ( i = 0 ; i < bytes_read ; i++ )
+        {
+            if ( in_line )
+            {
+                if ( curr_ofs >= curr_alloc )
+                {
+                    curr_alloc <<= 1;
+                    line = realloc( line, curr_alloc );
+ 
+                    if ( !line )    /* out of memory? */
+                        return NULL;
+                }
+                line[ curr_ofs++ ] = buf[i];
+            }
+ 
+            if ( buf[i] == '\n' )
+            {
+                line_no--;
+ 
+                if ( line_no == 1 )
+                    in_line = 1;
+ 
+                if ( line_no == 0 )
+                    break;
+            }
+        }
+    }
+ 
+    /* Didn't find the line? */
+    if ( line_no != 0 ) 
+    {
+        free( line );
+        return NULL;
+    }
+ 
+    /* Resize allocated buffer to what's exactly needed by the string 
+       and the terminating NUL character.  Note that this code *keeps*
+       the terminating newline as part of the string. 
+     */
+    line = realloc( line, curr_ofs + 1 );
+ 
+    if ( !line ) /* out of memory? */
+        return NULL;
+ 
+    /* Add the terminating NUL. */
+    line[ curr_ofs ] = '\0';
+ 
+    /* Return the line.  Caller is responsible for freeing it. */
+    return line;
+}
+
 /*
  UDP Message sending ...
 */
@@ -586,6 +659,7 @@ int sendUDPMessage(char *wlan,
            dstUdpPort = UDP_PORT;                   // If no port is provided, use default.
    }
 
+   //char format[] = "%s|%s|%02.0f|%li|%li|%.1f|%.1f|%.1f;";
    char format[] = "%s|%s|%02.0f|%li|%li|%.1f|%.1f;";
    associatedIBSSTp *assocItem = associationsPt->begin;
    while (assocItem) {
@@ -609,6 +683,7 @@ int sendUDPMessage(char *wlan,
                assocItem->txBytes,              // tx+rx bytes in this association only
                totalBytes,                      // tx+rx bytes in all associations of this node's
                assocItem->txRate,               //current operational speed
+               //SINR,
                projSpeed);                      // predicted speed
 
        if (message)
@@ -635,7 +710,39 @@ int sendUDPMessage(char *wlan,
        }
        assocItem = assocItem->next;
    }
+/*
+//MONIT
+    FILE *fp;
+    fp = popen("/home/openwimesh/ctrl_plane-bytes.sh", "r");
 
+    char *line2 = get_nth_line( fp, 2 );
+
+
+    
+    char format2[] = "%s";
+    if ( line2 )
+    {
+        //printf("The 2th line of input was:\n%s\n", line2 );
+        //sprintf(buf, format2,            
+        //       line2);  // total bytes of control plane 
+        free( line2 );
+    }
+
+    if (message)
+           mLen = strlen(message) + strlen(buf);
+    else
+    {
+       return 0;
+    }
+    tmp = malloc(mLen + 1);
+    *tmp = '\0';
+    if (message) {
+         strcpy(tmp, message);
+         free(message);
+        }
+    strcat(tmp, buf);
+    message = tmp;
+*/
    if (message) {
        // Sends the final message Part.
        sendUDPMsgPart(dstIpAddr, dstUdpPort, message);
@@ -835,6 +942,54 @@ int getEmulatedAssociationList(associationListTp *associationsPt) {
     }    
     while (readItems>0);
     
+    return 0;
+}
+
+// Reads bytes transported by the control plane via 'ovs-ofctl'
+int getControlPlaneTotalBytes(long long unsigned int *totalBytes) {
+
+    FILE *f1, *f2;
+    char cmd1[50], cmd2[50];
+    int bufSize = 200;
+    char buf[bufSize];
+    long long unsigned int rxBytes, txBytes;
+    int read;
+
+    sprintf(cmd1, "ovs-ofctl dump-flows ofsw0 tcp,tp_src=6633");
+    f1 = popen(cmd1, "r");
+    if (!f1) {
+        printf("Could not execute \"ovs-ofctl\" command\n");
+        return -1;
+    }
+    while ( fgets(buf, bufSize, f1) != NULL) {
+// Sample string ...
+//"          RX bytes:155763204 (155.7 MB)  TX bytes:23611393 (23.6 MB)"
+        read = sscanf(buf,"n_bytes:%llu",
+                          &rxBytes);
+        if (read > 0) {
+            //printf("Rx = %llu, Tx = %llu\n", rxBytes, txBytes);
+            break;
+        }
+    }
+
+    sprintf(cmd2, "ovs-ofctl dump-flows ofsw0 tcp,tp_dst=6633");
+    f2 = popen(cmd2, "r");
+    if (!f2) {
+        printf("Could not execute \"ovs-ofctl\" command\n");
+        return -1;
+    }
+    while ( fgets(buf, bufSize, f2) != NULL) {
+// Sample string ...
+        read = sscanf(buf,"n_bytes:%llu",
+                          &txBytes);
+        if (read > 0) {
+            //printf("Rx = %llu, Tx = %llu\n", rxBytes, txBytes);
+            break;
+        }
+    }
+    *totalBytes = rxBytes + txBytes;
+    pclose(f1);
+    pclose(f2);
     return 0;
 }
 

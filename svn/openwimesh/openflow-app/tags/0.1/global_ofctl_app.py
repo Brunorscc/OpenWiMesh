@@ -95,17 +95,33 @@ class global_ofcl_app(object):
 			return 'fake'
 		return "ok"
 
+	@Pyro4.oneway
+	def update_nodes(self,cid,nl):
+			logging.debug("update ofct %s nodes list", cid)
+			nodes = self.gnet_graph.get_node_list_by_attr('cid', cid)
+
+			remove_list = list(set(nodes)-set(nl))
+
+			for node in remove_list:
+					logging.debug("remove node %s", node)
+					self.gnet_graph.remove_node(node)
+
 	def check_creating_new_ofctl(self,cid):
-		nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
 		if cid not in self.gnet_graph.ofctl_list:
 			return None
+		nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
+
 
 		
 		#if sum([ i in nodes for i in self.becoming_ofctl]):
 
 
 		ofctl_hw = self.gnet_graph.ofctl_list[cid]['hwaddr']
-		nodes.remove(ofctl_hw)
+		try: 
+			nodes.remove(ofctl_hw)
+		except Exception as e:
+			logging.debug("Erro remove nodes (%e) - nodes = %s - ofctl_hw = %s", e,nodes, ofctl_hw) 
+
 		if len(nodes) - sum([ i in nodes for i in self.becoming_ofctl]) > 2:			
 			new_ofctl_hw = random.choice(nodes)
 			if new_ofctl_hw in self.becoming_ofctl:
