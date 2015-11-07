@@ -314,12 +314,12 @@ class openwimesh (EventMixin):
 
         log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        try:
-            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, time.time()))
-        except Exception as e:
-            log.debug("falha ao criar controlador remoto %s",e)
-            openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
-            return 
+        #try:
+            #os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, time.time()))
+        #except Exception as e:
+         #   log.debug("falha ao criar controlador remoto %s",e)
+         #   openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
+         #   return 
         #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
         try:
             if sw_ip in openwimesh.fakesw:
