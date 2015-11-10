@@ -63,7 +63,7 @@ import Pyro4
 from threading import Thread
 
 log = core.getLogger()
-
+Pyro4.config.COMMTIMEOUT = 1.0
 # time between arp-resquests that we don't reply again
 ARP_REQ_DELAY=10
 
@@ -314,11 +314,11 @@ class openwimesh (EventMixin):
 
         log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
-        #try:
-            #os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, time.time()))
-        #except Exception as e:
-         #   log.debug("falha ao criar controlador remoto %s",e)
-         #   openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
+        try:
+            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, time.time()))
+        except Exception as e:
+            log.debug("falha ao criar controlador remoto %s",e)
+            openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
          #   return 
         #os.system("bash /home/openwimesh/novo-controlador.sh 192.168.199.4 192.168.199.252 PYRO:global_ofcl_app@192.168.199.254:47922 192.168.199.254 00:00:00:aa:00:00 1 00:00:00:aa:00:02 ")
         try:
@@ -424,9 +424,10 @@ class openwimesh (EventMixin):
                     openwimesh.gshow_graph_time_stamp = time_stamp 
                     # draw nodes
                     for c,l in dcid.items():
-                        color = random.choice(colors)
+                        color = colors.pop()
+                        #color = random.choice(colors)
                         draw_networkx_nodes(gnetg,openwimesh.gshow_layout,nodelist=l,node_size=1500,node_color=color)
-                        colors.pop(colors.index(color))
+                        #colors.pop(colors.index(color))
                     # draw edges
                     draw_networkx_edges(gnetg,openwimesh.gshow_layout)
                     # getting node labels
@@ -1502,12 +1503,12 @@ def _poller_check_global_task(ofpox, interval, timeout):
     openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
     openwimesh.gnetgraph.update_nodes(cid, nodes)
     log.debug("Checking if there are tasks from global_app")
-    new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
-    #print new_ofctl_hw
-    if new_ofctl_hw:
-        print "calma"
-        th = Thread(target=openwimesh.make_ofctl, args=(new_ofctl_hw,))
-        th.start()
+    # new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
+    # #print new_ofctl_hw
+    # if new_ofctl_hw:
+    #     print "calma"
+    #     th = Thread(target=openwimesh.make_ofctl, args=(new_ofctl_hw,))
+    #     th.start()
 
     
 def launch (ofmac, ofip, cid=0, priority=0, gcid=0, ofglobalhw=None, ofglobalip=None, uri=None, crossdomain=None, interval=5, swtout=3, algorithm=0, monit=0): # interval=5, swtout=3 were the original values
