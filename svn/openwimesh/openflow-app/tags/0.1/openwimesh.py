@@ -1158,12 +1158,31 @@ class openwimesh (EventMixin):
         icmp_type = ip_pkt.next.type
         icmp_code = ip_pkt.next.code
 
+
         #th = Thread(target=self._async_call, args=(self.async_gnetgraph.get_fortune("BBMP"),))
         #th.start()
         # recv_node_hw: host who generated the packetin
+
         dpid = dpidToStr(event.dpid)
+
+        print "################### ICMP ID: %s" % ip_pkt.next.next.id
+        if nw_dst == '192.168.1.1':
+            # RECEBIDO PING ECHO REQUEST de outro possível domínio global
+            # 
+            # ESTA MSG FOI GERADA POR UM:
+            # nping --dest-mac 00:00:00:aa:00:06 --icmp --icmp-id 3 192.168.1.1 -c 2
+            # nping --dest-mac <MAC_VIZINHO_FORA_DO_DOMINIO> --icmp --icmp-id <GLOBALCTRL_ID> <IP_REDE_FAKE> -c <COUNT>
+
+            #extrair CID do ICMP ID e enviar ao GlobalCTRL, para então se decidir quem será o ÚNICO global da rede
+            cid = ip_pkt.next.next.id
+
+            #
+            # TODO: send CID, DPID(MAC) and src IP to global via Pyro
+            # 
+
         recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
         if not recv_node_hw:
+
             log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
             self._drop(event)
             return
