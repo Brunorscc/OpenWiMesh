@@ -63,6 +63,14 @@ class global_ofcl_app(object):
 							
 				except Exception as e:
 					logging.debug("Problema %s",e)
+
+			try:
+				for node in self.connecting_nodes:
+					now = time.time()
+					if now - self.connecting_nodes[node]['time'] > 8:
+						del self.connecting_nodes[node]
+			except Exception as e:
+				logging.debug("Problema remover connecting_nodes (%s)",e)
 					
 			logging.debug("sleeping")
 			time.sleep(5)
@@ -88,7 +96,7 @@ class global_ofcl_app(object):
 		if orig_src_hw in self.connecting_nodes:
 			return "connecting"
 
-		self.connecting_nodes[orig_src_hw]= {'cid': cid}
+		self.connecting_nodes[orig_src_hw]= {'cid': cid, 'time': time.time()}
 		logging.debug("self.gnet_graph.ofctl_list[cid]['ipaddr'] != 192.168.199.254 is %s",(self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254'))
 		if self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254':
 			logging.debug("%s will take over control sw (%s)",self.gnet_graph.ofctl_list[cid]['ipaddr'],orig_src_hw)
