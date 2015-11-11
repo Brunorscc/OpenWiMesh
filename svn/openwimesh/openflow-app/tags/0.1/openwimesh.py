@@ -274,6 +274,11 @@ class openwimesh (EventMixin):
        print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_global_ofctl(), openwimesh.netgraph.get_hw_global_ofctl() )
 
     @classmethod
+    def migrating_switch(cls,hw_addr):
+        cid = openwimesh.netgraph.get_cid_ofctl()
+        openwimesh.gnetgraph.add_migrating_node(hw_addr,cid)
+
+    @classmethod
     def make_ofctl(cls,new_ofctl_hw):#self.gnet_graph.add_add_becoming_ofctl(new_ofctl_hw)
         #time.sleep(1)
         try:
@@ -1029,7 +1034,13 @@ class openwimesh (EventMixin):
         ofctl_ip = self.net_graph.get_ip_ofctl()
         dst_node_ip_path = dst_node_ip
         if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
-            check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip)
+            try:
+                check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip)
+            except Exception as e:
+                log.debug("HANDLE ARP REQ - Falha da conexão com global")
+                check_arp = "fake"
+
+
             if check_arp != "ok" and check_arp != "fake":
                 log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
                 self._drop(event)

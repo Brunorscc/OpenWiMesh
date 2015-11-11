@@ -27,6 +27,17 @@ class global_ofcl_app(object):
 		self.ip_ofct_list=list(range(225,253))
 		self.becoming_ofctl = []
 		self.connecting_nodes = {}
+		self.migrating_nodes = {}
+
+	@Pyro4.oneway
+	def add_migrating_node(self,hw_addr,cid):
+		logging.debug("ADD MIGRATING NODES HW= %s  CID= %s", hw_addr,cid)
+		try:
+			self.migrating_nodes[hw_addr] = cid
+		except Exception as e:
+			logging.debug("DISGRAAAACA - %s", e)
+
+		logging.debug("Migrating Nodes is %s", self.migrating_nodes)
 
 	@Pyro4.oneway
 	def set_gcid(self,gcid):
@@ -53,6 +64,7 @@ class global_ofcl_app(object):
 						nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
 						for node in nodes:
 							logging.debug('Removing node %s',node)
+							#add lista de espera
 							self.gnet_graph.remove_node(node)
 						logging.debug('Removing ofctl %s', cid)
 						ofctl_ip = self.gnet_graph.ofctl_list[cid]['ipaddr']
@@ -95,6 +107,13 @@ class global_ofcl_app(object):
 			return "connected"
 		if orig_src_hw in self.connecting_nodes:
 			return "connecting"
+
+		logging.debug("#### ANTES DO Migrating %s - IN %s ##### ", orig_src_hw, self.migrating_nodes)
+		if orig_src_hw in self.migrating_nodes:
+			logging.debug("#### ANTES DO 2-IF Migrating %s = %s ##### ", orig_src_hw, cid)
+			if self.migrating_nodes[orig_src_hw] != cid:
+				logging.debug("#### Migrating %s #####", orig_src_hw)
+				return "Migrating"
 
 		self.connecting_nodes[orig_src_hw]= {'cid': cid, 'time': time.time()}
 		logging.debug("self.gnet_graph.ofctl_list[cid]['ipaddr'] != 192.168.199.254 is %s",(self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254'))

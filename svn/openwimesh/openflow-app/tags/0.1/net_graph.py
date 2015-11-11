@@ -147,6 +147,11 @@ class NetGraph(DiGraph, Controller, object):
         self.weight_selection_algorithm = int(algorithm)
 
     def get_by_attr(self, attr, value):
+
+        #ARMENGUE P/ REMOVER
+        if attr == 'ip' and value == '192.168.199.254':
+            return self.get_hw_ofctl()
+
         if attr == 'ip' and value == self.get_ip_ofctl():
             return self.get_hw_ofctl()
 
