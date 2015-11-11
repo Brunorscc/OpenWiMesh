@@ -983,7 +983,13 @@ class openwimesh (EventMixin):
                # _send_arp_req_global
 
         if not dst_node_hw:
-            crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
+
+            try:
+                crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
+            except Exception as e:
+                log.debug("ERRO CROSSDOMAIN COMMUNICACAO COM GLOBAL - %s", e)
+                return None
+
             if crossd is not None:
                 log.debug("Add crossdomain with destination %s between %s and %s",dst_node_ip ,crossd['my_sw'],crossd['dst_sw'])
                 self.net_graph.add_route_ins(dst_node_ip,crossd['my_sw'],crossd['dst_sw'])
@@ -1336,13 +1342,19 @@ class openwimesh (EventMixin):
 
     
     def _async_add_edge(self,node1,node2):
-        self.gnet_graph.add_edge(node1, node2,
-                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-        self.gnet_graph.add_edge(node2, node1,
-                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+        try:
+            self.gnet_graph.add_edge(node1, node2,
+                            weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+            self.gnet_graph.add_edge(node2, node1,
+                            weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+        except Exception as e:
+            log.debug("ERRO SYNC ADD EDGE - %s", e)
 
     def _async_add_node(self,hw,ip,cid):
-        self.gnet_graph.add_node(hw, ip, cid)
+        try:
+            self.gnet_graph.add_node(hw, ip, cid)
+        except Exception as e:
+            log.debug("ERRO SYNC ADD NODE - %s", e)
 
     
 
@@ -1597,9 +1609,12 @@ def _poller_check_global_task(ofpox, interval, timeout):
     ofctl_hw = openwimesh.netgraph.get_hw_ofctl()
     ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
     nodes = openwimesh.netgraph.nodes()
-    openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
-    openwimesh.gnetgraph.update_nodes(cid, nodes)
-    log.debug("Checking if there are tasks from global_app")
+    try:
+        openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
+        openwimesh.gnetgraph.update_nodes(cid, nodes)
+        log.debug("Checking if there are tasks from global_app")
+    except Exception as e:
+            log.debug("ERRO UPDATE NODES GLOBAL - %s", e)
     # new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
     # #print new_ofctl_hw
     # if new_ofctl_hw:

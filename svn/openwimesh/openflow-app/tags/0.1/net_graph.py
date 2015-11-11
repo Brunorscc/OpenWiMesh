@@ -273,15 +273,24 @@ class NetGraph(DiGraph, Controller, object):
             else:
                 dst_mac = self.get_my_crossdomain_sw(dst_ip)
                 if dst_mac is not None:
-                    domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
+                    try:
+                        domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
+                    except Exception as e:
+                        #log.debug("ERRO ENCONTRAR O PATH - %s", e)
+                        return []
+
                     if len(domain_path) != 0:
                         dst_sw = self.get_dst_crossdomain_sw(dst_ip)
                         domain_path.append(dst_sw)
                     return domain_path
                 else:
                     return []
-
-        return shortest_path(self, src_mac, dst_mac, 'weight')
+        try:
+            domain_path = shortest_path(self, src_mac, dst_mac, 'weight')
+        except Exception as e:
+            #log.debug("ERRO SYNC ADD EDGE - %s", e)
+            return []
+        return domain_path
 
     def add_edge(self, source_mac, target_mac, signal=None,
             traffic_byt=None, speed_mbps=None, d_speed_mbps=None,
