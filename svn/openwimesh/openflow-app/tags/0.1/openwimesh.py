@@ -1339,7 +1339,7 @@ class openwimesh (EventMixin):
                 th1.start()
 
             
-            print("Gnet.nodes:",self.gnet_graph.nodes())
+            #print("Gnet.nodes:",self.gnet_graph.nodes())
             #print(self.gnet_graph.edges())
 
                 
@@ -1349,7 +1349,11 @@ class openwimesh (EventMixin):
         if sw_hw_addr == ofctl_hw_addr:
             ofctl_ip = self.net_graph.get_ip_ofctl()
             cid = self.net_graph.get_cid_ofctl()
-            self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
+            try:
+                self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
+            except Exception as e:
+                log.debug("Global communication failure (%s)",e)
+                print "Global communication failure (%s)" % e
 
         # if self.max_sw_capacity < self.net_graph.number_of_nodes():
         #     print "calma"

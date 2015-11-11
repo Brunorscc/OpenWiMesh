@@ -58,11 +58,35 @@ class NetGraph(DiGraph, Controller, object):
         self.ofctl_list = {}
         self.route_ins_table = {}
         self.weight_selection_algorithm = None
+        self.other_domain_neigh = {}
         # init time stamp
         self.time_stamp = 0
 
-    def add_route_ins(self, dst_ip, my_crossd_hw, dst_crossd_hw, last_update=time()):
-        self.route_ins_table[dst_ip] = {'my_crossd_hw': my_crossd_hw, 'dst_crossd_hw': dst_crossd_hw, 'last_update': last_update }
+    def add_other_domain_neigh(self, my_sw,neigh):
+        if my_sw not in self.other_domain_neigh:
+            self.other_domain_neigh[my_sw] = []
+        for i,n in enumerate(self.other_domain_neigh[my_sw]):
+            if n['neigh'] == neigh:
+                self.other_domain_neigh[my_sw][i]['last_update'] = time()
+                return                
+
+        self.other_domain_neigh[my_sw].append({'neigh': neigh, 'last_update': time() })
+
+    def clear_outdated_od_neigh(self):
+        dead= []
+        print self.other_domain_neigh
+        #print "####### FIM #######"
+        for sw in self.other_domain_neigh:
+            for i,neigh in enumerate(self.other_domain_neigh[sw]):
+                if (time() - neigh['last_update']) > 20:
+                    dead.append({'sw' : sw , 'neigh' : neigh})
+
+        for n in dead:
+            self.other_domain_neigh[ n['sw'] ].remove(n['neigh'])
+
+
+    def add_route_ins(self, dst_ip, my_crossd_hw, dst_crossd_hw):
+        self.route_ins_table[dst_ip] = {'my_crossd_hw': my_crossd_hw, 'dst_crossd_hw': dst_crossd_hw, 'last_update': time() }
 
     def get_crossd_by_attr(self, attr, value):
         for dst_ip in self.route_ins_table:
@@ -302,6 +326,8 @@ class NetGraph(DiGraph, Controller, object):
             if neigh not in self.nodes() or self.node[neigh]['conn'] is None \
                     or self.node[neigh]['conn'].disconnected:
                 #print "neigh is %s" % neigh
+                self.add_other_domain_neigh(node,neigh)
+                self.clear_outdated_od_neigh()
                 continue
 
             residual_bw = d_speed_mbps
