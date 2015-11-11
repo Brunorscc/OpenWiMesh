@@ -916,6 +916,11 @@ class openwimesh (EventMixin):
     def _get_crossdomain(self,recv_node_ip,dst_node_ip):
         log.debug("Asking global_app who is %s ",dst_node_ip)
         dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
+
+        if dst_node_hw:
+            if (time.time() - self.net_graph.get_crossdomain_last_update(dst_node_ip)) > 5:
+                dst_node_hw= None
+
         if not dst_node_hw:
             crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
             if crossd is not None:
