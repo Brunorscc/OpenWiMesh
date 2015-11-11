@@ -939,6 +939,8 @@ class openwimesh (EventMixin):
         orig_src_ip = str(arp_pkt.protosrc)
         dst_node_ip = str(arp_pkt.protodst)
 
+        print "ARP RECEIVED - TARGET IP= %s" % dst_node_ip
+
         try:
             #print "%s in %s is %s" % (orig_src_ip,self.drop_fake, (orig_src_ip in self.drop_fake) ) 
             if orig_src_ip in self.drop_fake and dst_node_ip == self.drop_fake[orig_src_ip][0]:
