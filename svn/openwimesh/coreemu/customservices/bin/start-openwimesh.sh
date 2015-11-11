@@ -107,7 +107,7 @@ if [ "$OWM_OFCTL" != "$PRI_MYIP" ]; then
 	ovs-ofctl add-flow ofsw0 arp,nw_dst=$PRI_MYIP,actions=LOCAL
 	ovs-ofctl add-flow ofsw0 tcp,in_port=65534,nw_dst=$OWM_OFCTL,tp_dst=6633,actions=output:$ovsif
 	ovs-ofctl add-flow ofsw0 tcp,nw_src=$OWM_OFCTL,nw_dst=$PRI_MYIP,tp_src=6633,actions=LOCAL
-  ovs-ofctl add-flow ofsw0 arp,arp_tpa=192.168.1.1,actions=ALL
+  ovs-ofctl add-flow ofsw0 arp,nw_src=$PRI_MYIP,arp_tpa=192.168.1.1,actions=ALL
 fi
 
 for i in $OWM_IFACES; do

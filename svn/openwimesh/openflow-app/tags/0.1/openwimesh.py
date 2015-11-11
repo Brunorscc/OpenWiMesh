@@ -655,6 +655,61 @@ class openwimesh (EventMixin):
             else:
                 return [out_port]
 
+    #def _send_arp_req_global(self, target_sw, target_ip, in_port, requester_ip, requester_hw):
+    def _send_arp_req_global(self, mac):
+        sw = self.net_graph.node[mac]
+        
+        sw_mac = self.net_graph.get_by_attr('dpid', mac)
+        
+        if not sw_mac:
+            print "MAC not found in graph, please check."
+            return
+        else:
+            # create the arp packet
+            sw_ip = self.net_graph.get_by_attr('ip', sw_mac)
+
+            r = packet.arp()
+            r.opcode = packet.arp.REQUEST
+            
+            r.hwsrc = EthAddr(self.net_graph.get_hw_ofctl())
+            r.hwdst = EthAddr()
+            
+            r.protosrc = IPAddr(self.net_graph.get_hw_ofctl())
+            r.protodst = IPAddr('192.168.1.1')
+
+###
+            if type(target_ip) is str:
+                target_ip = IPAddr(target_ip)
+            r.protosrc = target_ip
+
+            if type(requester_ip) is str:
+                requester_ip = IPAddr(requester_ip)
+            r.protodst = requester_ip
+
+            if type(requester_hw) is str:
+                requester_hw = EthAddr(requester_hw)
+            r.hwdst = requester_hw
+####
+
+            # create the ethernet packet
+            e = packet.ethernet()
+            e.type = packet.ethernet.ARP_TYPE
+            e.src = EthAddr(sw_mac)
+            e.dst = packet.ethernet.ETHER_BROADCAST
+            e.payload = r
+
+            # now we send the packet to crossdomain to do execute the arp request
+            msg = of.ofp_packet_out()
+            msg.data = e.pack()
+            msg.actions.append(of.ofp_action_output(port = 1))
+            msg.in_port = 1
+            conn = sw.get('conn', None)
+            if conn:
+                conn.send(msg)
+                log.debug("Sending ARP-CUSTOM-Request [%s -> %s]: %s is at %s", e.src,
+                        e.dst, r.protosrc, r.hwsrc)
+
+
     # ARP-Reply: target_ip is at target_sw.mac
     def _send_arp_reply(self, target_sw, target_ip, in_port, requester_ip,
             requester_hw):
@@ -920,6 +975,7 @@ class openwimesh (EventMixin):
         if dst_node_hw:
             if (time.time() - self.net_graph.get_crossdomain_last_update(dst_node_ip)) > 5:
                 dst_node_hw= None
+               # _send_arp_req_global
 
         if not dst_node_hw:
             crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
