@@ -179,12 +179,20 @@ def handle_PacketIn_Function (self, event):
                         #log.debug("Edges: %s" % self.net_graph.edges(data=True))
                         self.net_graph.update_edges_of_node(sw, assoc_list)
                         
-                        try:
-                            cid = self.net_graph.get_cid_ofctl()
-                            th = Thread(target=self.gnet_graph.update_edges_of_node, args=(cid,sw, assoc_list,))
-                            th.start()
-                        except Exception as e:
-                            log.debug("Error update gnet edges (%s)" % e)
+                        now = time.time()
+
+                        if now > openwimesh.tstamp_backoff:
+                            try:
+                                cid = self.net_graph.get_cid_ofctl()
+                                th = Thread(target=self.gnet_graph.update_edges_of_node, args=(cid,sw, assoc_list,))
+                                th.start()
+                                openwimesh.tstamp_last= time.time()
+                                #openwimesh.backoff = 0
+                            except Exception as e:
+                                openwimesh.backoff+=1
+                                openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                                log.debug(" Update EDGES GLOBAL - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+                                log.debug("Error update GLOBAL EDGES (%s)" % e)
                         
                         log.debug("Update graph from graphClient() in %s: %s" %
                                 (sw, assoc_list))
@@ -294,10 +302,10 @@ class openwimesh (EventMixin):
             return 
 
         try:
-            print "%s is free" % new_ofctl_ip
+            #print "%s is free" % new_ofctl_ip
             ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
             path = openwimesh.gnetgraph.path(ofctl_ip,sw_ip)
-            print "global path %s -> %s -> %s" % (ofctl_ip,path,sw_ip)
+            #print "global path %s -> %s -> %s" % (ofctl_ip,path,sw_ip)
             i = path.index(new_ofctl_hw)
             crossdomain_sw = path[i-1]
         except Exception as e:
@@ -515,7 +523,8 @@ class openwimesh (EventMixin):
 
         try:
             if gcid != cid:
-                self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain)#destino global_app
+                self.net_graph.add_route_ins_global(ofmac, crossdomain)
+                #self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain)#destino global_app
                 #self.net_graph.add_route_ins('192.168.199.2', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
                 #self.net_graph.add_route_ins('192.168.199.3', '00:00:00:aa:00:03','00:00:00:aa:00:02',1)
             else:
@@ -854,7 +863,10 @@ class openwimesh (EventMixin):
         if not dst_node_hw:
             dst_node_hw = self._get_crossdomain(recv_node_ip,dst_ip)
 
+        log.debug("PRINT DST NODE HW - %s", dst_node_hw)
+        log.debug("LOG MY CROSSDOMAIN - %s, DST CROSSDOMAIN - %s", self.net_graph.get_my_crossdomain_sw(dst_ip), self.net_graph.get_dst_crossdomain_sw(dst_ip))
         path = self.net_graph.path(src_ip, dst_ip)
+
         #print (self.gnet_graph.path(src_ip,dst_ip))
         #th = Thread(target=self._async_call, args=( self.async_gnetgraph.path( src_ip,dst_ip ), ) )
         #th.start()
@@ -986,7 +998,7 @@ class openwimesh (EventMixin):
         if dst_node_hw:
             if (now - self.net_graph.get_crossdomain_last_update(dst_node_ip)) > 5:
                 dst_node_hw= None
-               # _send_arp_req_global
+                # _send_arp_req_global
 
         if not dst_node_hw:
 
@@ -994,11 +1006,14 @@ class openwimesh (EventMixin):
                 try:
                     crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
                     openwimesh.tstamp_last= time.time()
+                    openwimesh.backoff = 0
                 except Exception as e:
                     openwimesh.backoff+=1
-                    openwimesh.tstamp_backoff = calc_tstamp_backoff(tstamp_last, backoff)
-                    log.debug("BACKOFF CROSSDOMAIN - %s  TSTAMP BACKOFF - %s", backoff, tstamp_backoff)
+                    openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                    log.debug("BACKOFF CROSSDOMAIN - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
                     log.debug("ERRO CROSSDOMAIN COMMUNICACAO COM GLOBAL - %s", e)
+                    
+
                     return None
             else:
                 crossd = None
@@ -1014,21 +1029,42 @@ class openwimesh (EventMixin):
         return dst_node_hw
 
     def _async_add_edge_tmp(self,node1,node2):
-        self.gnet_graph.add_edge(node1, node2,
-                    weight=10*NetGraph.DEFAULT_WEIGHT)
-        self.gnet_graph.add_edge(node2, node1,
-                    weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
+        now = time.time()
+        if now > openwimesh.tstamp_backoff:
+            try:
+                self.gnet_graph.add_edge(node1, node2,
+                weight=10*NetGraph.DEFAULT_WEIGHT)
+                self.gnet_graph.add_edge(node2, node1,
+                weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
 
+                openwimesh.tstamp_last= time.time()
+                openwimesh.backoff = 0
+            except Exception as e:
+                openwimesh.backoff+=1
+                openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                log.debug("BACKOFF TEMP ADD EDGE GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+                log.debug("ERRO ADD EDGETMP COMMUNICACAO COM GLOBAL - %s", e)
+                return None
+        else:
+            crossd = None       
+
+        
 #    tstamp_last = 0
 #    tstamp_backoff = 0
 #    backoff = 0
+
     def calc_tstamp_backoff(self, last, decimal_backoff):
-        # E(c) = 1/2 * (2^c - 1)
-        time = 0
+        # E(c) = 1/2 * (2^c - 1
+        wait = 1 
+        i = 0
 
-        time = ((2 ^ decimal_backoff) - 1)/2
+        while i < decimal_backoff:
+            i = i + 1 
+            wait = wait * 2 
 
-        return last + time
+        wait = (wait - 1)/2
+
+        return last + wait
         
 
     def _handle_arp_req(self, event, arp_pkt):
@@ -1056,26 +1092,27 @@ class openwimesh (EventMixin):
         # recv_node_hw: host who generated the packetin to controller
         dpid = dpidToStr(event.dpid)
         recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
-        print "pkt-in gerado por %s" % recv_node_hw
+        #print "pkt-in gerado por %s" % recv_node_hw
         if not recv_node_hw:
             log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
             self._drop(event)
-            print "matei 1"
+            #print "matei 1"
             return
         
         ofctl_ip = self.net_graph.get_ip_ofctl()
         dst_node_ip_path = dst_node_ip
      
         now=time.time() #BACKOFF CONSULTA GLOBAL CASO ERRO CONEXAO
-        if now > tstamp_backoff:
+        if now > openwimesh.tstamp_backoff:
             if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
                 try:
                     check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip)
-                    tstamp_last= time.time()
+                    openwimesh.tstamp_last= time.time()
+                    openwimesh.backoff = 0
                 except Exception as e:
-                    backoff+=1
-                    tstamp_backoff = calc_tstamp_backoff(tstamp_last, backoff)
-                    log.debug("BACKOFF ARP REQ GLOBAL - %s  TSTAMP BACKOFF - %s", backoff, tstamp_backoff)
+                    openwimesh.backoff+=1
+                    openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                    log.debug("BACKOFF ARP REQ GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
 
                     log.debug("HANDLE ARP REQ - Falha da conexão com global")
                     check_arp = "fake"
@@ -1109,7 +1146,7 @@ class openwimesh (EventMixin):
                 self._drop(event)
                 self.net_graph.print_nodes(ip_key=dst_node_ip,  elapsed_time=(time.time() - self.startup_time), filename='bug2.log')
                 self.not_in_graph.append(dst_node_ip)
-                print "matei 2"
+                #print "matei 2"
                 return
 
         if self.net_graph.get_ip_ofctl() == dst_node_ip and recv_node_hw == self.net_graph.get_hw_ofctl():
@@ -1122,10 +1159,11 @@ class openwimesh (EventMixin):
             try:
                 self.net_graph.add_node(orig_src_hw, orig_src_ip)
                 openwimesh.addnode_time[orig_src_hw] = time.time()
+                print "add o %s ao netgraph" % orig_src_ip
             except Exception as e:
                 print "Erro ao add o node: %s" % e
 
-            print "add o %s ao netgraph" % orig_src_ip
+            
             
             # Debugging code ...
             #log.debug("Added new node: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
@@ -1153,7 +1191,7 @@ class openwimesh (EventMixin):
             #     th.start()
             # except Exception as e:
             #     log.debug("Error add edge gnet (%s)" % e)
-            print "add edge"
+            #print "add edge"
 
         arp_req_msg = "who-has-%s-tell-%s" % (dst_node_ip, orig_src_ip)
         log.debug("ARP-Request received in %s [%s -> %s]: %s", dpid,
@@ -1193,7 +1231,7 @@ class openwimesh (EventMixin):
             self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
                 'time' : time.time()}
             self._drop(event)
-            print "matei 4"
+            #print "matei 4"
             return
 
         # check if the node is trying to talk with the controller
@@ -1256,6 +1294,7 @@ class openwimesh (EventMixin):
                 nw_dst_path = self.net_graph.get_ip_ofctl()
         except Exception as e:
             print "erro armengue para o tcp: %s" % e
+
 
 
         match_fields = {'dl_type' : packet.ethernet.IP_TYPE,
@@ -1372,26 +1411,37 @@ class openwimesh (EventMixin):
         #os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_src=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,output:1" % (ofctl_ip,sw_ip_addr,previous_sw,sw_hw_addr))
 
         print "fim do fake"
-
-
     
     def _async_add_edge(self,node1,node2):
-        try:
-            self.gnet_graph.add_edge(node1, node2,
-                            weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-            self.gnet_graph.add_edge(node2, node1,
-                            weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-        except Exception as e:
-            log.debug("ERRO SYNC ADD EDGE - %s", e)
-            openwimesh.error_count_ag+=1
+        now = time.time()
+        if now > openwimesh.tstamp_backoff:
+            try:
+                self.gnet_graph.add_edge(node1, node2,
+                                weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+                self.gnet_graph.add_edge(node2, node1,
+                                weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+                openwimesh.tstamp_last= time.time()
+                openwimesh.backoff = 0
+            except Exception as e:
+                openwimesh.backoff+=1
+                openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                log.debug("BACKOFF ADD EDGE GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+                log.debug("ERRO SYNC ADD EDGE - %s", e)
+
 
     def _async_add_node(self,hw,ip,cid):
-        try:
-            self.gnet_graph.add_node(hw, ip, cid)
-        except Exception as e:
-            log.debug("ERRO SYNC ADD NODE - %s", e)
-
-    
+        now = time.time()
+        if now > openwimesh.tstamp_backoff:
+            try:
+                self.gnet_graph.add_node(hw, ip, cid)
+                openwimesh.tstamp_last= time.time()
+                openwimesh.backoff = 0
+            except Exception as e:
+                openwimesh.backoff+=1
+                openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                log.debug("BACKOFF ADD NODE GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+                log.debug("ERRO SYNC ADD NODE - %s", e)    
+        
 
     def _handle_ConnectionUp (self, event):
         """
@@ -1468,11 +1518,19 @@ class openwimesh (EventMixin):
         if sw_hw_addr == ofctl_hw_addr:
             ofctl_ip = self.net_graph.get_ip_ofctl()
             cid = self.net_graph.get_cid_ofctl()
-            try:
-                self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
-            except Exception as e:
-                log.debug("Global communication failure (%s)",e)
-                print "Global communication failure (%s)" % e
+            
+            now = time.time()
+            if now > openwimesh.tstamp_backoff:
+                try:
+                    self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
+                    openwimesh.tstamp_last= time.time()
+                    openwimesh.backoff = 0
+                except Exception as e:
+                    openwimesh.backoff+=1
+                    openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                    log.debug("ADD OFCTL GLOBAL - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+                    log.debug("Global communication failure (%s)",e)
+                    print "Global communication failure (%s)" % e
 
         # if self.max_sw_capacity < self.net_graph.number_of_nodes():
         #     print "calma"
@@ -1507,12 +1565,21 @@ class openwimesh (EventMixin):
             self.net_graph.remove_node(sw_mac)
         except Exception as e:
             log.debug("Error removing node from graph at connDown(%s)" % e)
-        try:
-            th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,self.net_graph.get_cid_ofctl(),))
-            th.start()
-            #print("gnet remove node err: %s " % self.gnet_graph.remove_node(sw_mac,self.net_graph.get_cid_ofctl()))
-        except Exception as e:
-            log.debug("Error conn down node from gnetgraph (%s)" % e)
+
+        now = time.time()
+        if now > openwimesh.tstamp_backoff:
+            try:
+                th = Thread(target=self.gnet_graph.remove_node, args=(sw_mac,self.net_graph.get_cid_ofctl(),))
+                th.start()
+                openwimesh.tstamp_last= time.time()
+                #openwimesh.backoff = 0
+                #print("gnet remove node err: %s " % self.gnet_graph.remove_node(sw_mac,self.net_graph.get_cid_ofctl()))
+            except Exception as e:
+                openwimesh.backoff+=1
+                openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+                log.debug("REMOVE NODE GLOBAL - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+                log.debug("Error remove node from global gnetgraph (%s)" % e)
+
 
     ########################################################
     # _handle_PacketIn (event)

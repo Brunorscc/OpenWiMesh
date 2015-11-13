@@ -57,6 +57,7 @@ class NetGraph(DiGraph, Controller, object):
 
         self.ofctl_list = {}
         self.route_ins_table = {}
+        self.route_ins_global_table = {}
         self.weight_selection_algorithm = None
         self.other_domain_neigh = {}
         # init time stamp
@@ -88,11 +89,18 @@ class NetGraph(DiGraph, Controller, object):
     def add_route_ins(self, dst_ip, my_crossd_hw, dst_crossd_hw):
         self.route_ins_table[dst_ip] = {'my_crossd_hw': my_crossd_hw, 'dst_crossd_hw': dst_crossd_hw, 'last_update': time() }
 
+    def add_route_ins_global(self, my_crossd_hw, dst_crossd_hw):
+        self.route_ins_global_table = {'my_crossd_hw': my_crossd_hw, 'dst_crossd_hw': dst_crossd_hw}
+        self.insert_route_ins()
+
+    def insert_route_ins(self):
+        self.add_route_ins(self.get_ip_global_ofctl(), self.route_ins_global_table['my_crossd_hw'], self.route_ins_global_table['dst_crossd_hw'])
+
     def get_crossd_by_attr(self, attr, value):
         for dst_ip in self.route_ins_table:
             if self.route_ins_table[dst_ip][attr] == value:
                 return dst_ip
-        return None
+        return None    
 
     def get_my_crossdomain_sw(self,dst_ip):
         if dst_ip not in self.route_ins_table:
