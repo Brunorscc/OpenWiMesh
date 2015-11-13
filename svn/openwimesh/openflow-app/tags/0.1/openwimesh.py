@@ -270,6 +270,9 @@ class openwimesh (EventMixin):
     monit_path = 0
     f_lat = None
     f_conv = None
+    tstamp_last = 0
+    tstamp_backoff = 0
+    backoff = 0
 
     #f_lat = open("/home/openwimesh/latencia/%s-latencia-ctrl-%s.txt" % (monit, ofip), "w")
     #f_lat.write("Switch,Timestamp,RTT\n")
