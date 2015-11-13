@@ -262,10 +262,6 @@ class openwimesh (EventMixin):
     monit_path = 0
     f_lat = None
     f_conv = None
-    error_count_ag = 0
-    tstamp_last = 0
-    tstamp_backoff = 0
-    backoff = 0
 
     #f_lat = open("/home/openwimesh/latencia/%s-latencia-ctrl-%s.txt" % (monit, ofip), "w")
     #f_lat.write("Switch,Timestamp,RTT\n")
@@ -276,11 +272,6 @@ class openwimesh (EventMixin):
     @classmethod
     def who_is_globalctl(cls):
        print "The global controller is %s %s " % ( openwimesh.netgraph.get_ip_global_ofctl(), openwimesh.netgraph.get_hw_global_ofctl() )
-
-    @classmethod
-    def migrating_switch(cls,hw_addr):
-        cid = openwimesh.netgraph.get_cid_ofctl()
-        openwimesh.gnetgraph.add_migrating_node(hw_addr,cid)
 
     @classmethod
     def make_ofctl(cls,new_ofctl_hw):#self.gnet_graph.add_add_becoming_ofctl(new_ofctl_hw)
@@ -577,6 +568,7 @@ class openwimesh (EventMixin):
         time.sleep(20)
         print "param = %s" % param.value
 
+
     #########################################################
     # Drop the specific packet from informed event
     #
@@ -662,61 +654,6 @@ class openwimesh (EventMixin):
                 return [of.OFPP_IN_PORT]
             else:
                 return [out_port]
-    
-    # Custom arp request to inform globalctrl of a possible different global domain
-    def _send_arp_req_global(self, mac):
-        sw = self.net_graph.node[mac]
-        
-        sw_mac = self.net_graph.get_by_attr('dpid', mac)
-        
-        if not sw_mac:
-            print "MAC not found in graph, please check."
-            return
-        else:
-            # create the arp packet
-            sw_ip = self.net_graph.get_by_attr('ip', sw_mac)
-
-            r = packet.arp()
-            r.opcode = packet.arp.REQUEST
-            
-            r.hwsrc = EthAddr(self.net_graph.get_hw_ofctl())
-            r.hwdst = EthAddr()
-            
-            r.protosrc = IPAddr(self.net_graph.get_hw_ofctl())
-            r.protodst = IPAddr('192.168.1.1')
-
-###
-           # if type(target_ip) is str:
-            #    target_ip = IPAddr(target_ip)
-            #r.protosrc = target_ip
-
-            #if type(requester_ip) is str:
-            #    requester_ip = IPAddr(requester_ip)
-            #r.protodst = requester_ip
-
-            #if type(requester_hw) is str:
-            #    requester_hw = EthAddr(requester_hw)
-            #r.hwdst = requester_hw
-####
-
-            # create the ethernet packet
-            e = packet.ethernet()
-            e.type = packet.ethernet.ARP_TYPE
-            e.src = EthAddr(sw_mac)
-            e.dst = packet.ethernet.ETHER_BROADCAST
-            e.payload = r
-
-            # now we send the packet to crossdomain to do execute the arp request
-            msg = of.ofp_packet_out()
-            msg.data = e.pack()
-            msg.actions.append(of.ofp_action_output(port = 1))
-            msg.in_port = 1
-            conn = sw.get('conn', None)
-            if conn:
-                conn.send(msg)
-                log.debug("Sending ARP-CUSTOM-Request [%s -> %s]: %s is at %s", e.src,
-                        e.dst, r.protosrc, r.hwsrc)
-
 
     # ARP-Reply: target_ip is at target_sw.mac
     def _send_arp_reply(self, target_sw, target_ip, in_port, requester_ip,
@@ -932,8 +869,7 @@ class openwimesh (EventMixin):
                 if str(match_fields['tp_src']) and str(match_fields['tp_src']) == "6633":
                     porta_destino = "6633"
                     if porta_destino:
-                        #print "funcionou?"
-                        pass
+                        print "funcionou?"
             except Exception, e:
                 log.debug("WARNING:  %s", e)
                 
@@ -949,14 +885,14 @@ class openwimesh (EventMixin):
                 print "passei 2"
                 actions = [['set_nw_dst',dst_ip], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             else:
-                #print "passei 3"
+                print "passei 3"
                 actions = [['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
 
             log.debug("Actions: %s" % actions)
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
-            #print "a porta de entrada é %s" % in_port
-            #print "a porta de saida é %s" % out_port
+            print "a porta de entrada é %s" % in_port
+            print "a porta de saida é %s" % out_port
             for i,p in enumerate(out_port):
                 actions.append(['output'+str(i), p])
 
@@ -980,29 +916,8 @@ class openwimesh (EventMixin):
     def _get_crossdomain(self,recv_node_ip,dst_node_ip):
         log.debug("Asking global_app who is %s ",dst_node_ip)
         dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
-
-        now=time.time()
-
-        if dst_node_hw:
-            if (now - self.net_graph.get_crossdomain_last_update(dst_node_ip)) > 5:
-                dst_node_hw= None
-               # _send_arp_req_global
-
         if not dst_node_hw:
-
-            if now > openwimesh.tstamp_backoff:
-                try:
-                    crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
-                    openwimesh.tstamp_last= time.time()
-                except Exception as e:
-                    openwimesh.backoff+=1
-                    openwimesh.tstamp_backoff = calc_tstamp_backoff(tstamp_last, backoff)
-                    log.debug("BACKOFF CROSSDOMAIN - %s  TSTAMP BACKOFF - %s", backoff, tstamp_backoff)
-                    log.debug("ERRO CROSSDOMAIN COMMUNICACAO COM GLOBAL - %s", e)
-                    return None
-            else:
-                crossd = None
-
+            crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
             if crossd is not None:
                 log.debug("Add crossdomain with destination %s between %s and %s",dst_node_ip ,crossd['my_sw'],crossd['dst_sw'])
                 self.net_graph.add_route_ins(dst_node_ip,crossd['my_sw'],crossd['dst_sw'])
@@ -1019,25 +934,10 @@ class openwimesh (EventMixin):
         self.gnet_graph.add_edge(node2, node1,
                     weight=10*NetGraph.DEFAULT_WEIGHT, confirmed=False)
 
-#    tstamp_last = 0
-#    tstamp_backoff = 0
-#    backoff = 0
-    def calc_tstamp_backoff(self, last, decimal_backoff):
-        # E(c) = 1/2 * (2^c - 1)
-        time = 0
-
-        time = ((2 ^ decimal_backoff) - 1)/2
-
-        return last + time
-        
-
     def _handle_arp_req(self, event, arp_pkt):
-
         orig_src_hw = str(arp_pkt.hwsrc)
         orig_src_ip = str(arp_pkt.protosrc)
         dst_node_ip = str(arp_pkt.protodst)
-
-        print "ARP RECEIVED - TARGET IP= %s" % dst_node_ip
 
         try:
             #print "%s in %s is %s" % (orig_src_ip,self.drop_fake, (orig_src_ip in self.drop_fake) ) 
@@ -1062,34 +962,20 @@ class openwimesh (EventMixin):
             self._drop(event)
             print "matei 1"
             return
-        
+
         ofctl_ip = self.net_graph.get_ip_ofctl()
         dst_node_ip_path = dst_node_ip
-     
-        now=time.time() #BACKOFF CONSULTA GLOBAL CASO ERRO CONEXAO
-        if now > tstamp_backoff:
-            if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
-                try:
-                    check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip)
-                    tstamp_last= time.time()
-                except Exception as e:
-                    backoff+=1
-                    tstamp_backoff = calc_tstamp_backoff(tstamp_last, backoff)
-                    log.debug("BACKOFF ARP REQ GLOBAL - %s  TSTAMP BACKOFF - %s", backoff, tstamp_backoff)
-
-                    log.debug("HANDLE ARP REQ - Falha da conexão com global")
-                    check_arp = "fake"
-
-
-                if check_arp != "ok" and check_arp != "fake":
-                    log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
-                    self._drop(event)
-                    print "matei dst ofctl"
-                    return
-                if check_arp == "fake":
-                    dst_node_ip_path = ofctl_ip
-                    self.fake_sw[orig_src_ip] = dst_node_ip
-                    log.debug("%s will take over control %s", dst_node_ip_path,orig_src_ip)
+        if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
+            check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip)
+            if check_arp != "ok" and check_arp != "fake":
+                log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
+                self._drop(event)
+                print "matei dst ofctl"
+                return
+            if check_arp == "fake":
+                dst_node_ip_path = ofctl_ip
+                self.fake_sw[orig_src_ip] = dst_node_ip
+                log.debug("%s will take over control %s", dst_node_ip_path,orig_src_ip)
 
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
@@ -1222,7 +1108,7 @@ class openwimesh (EventMixin):
         # After installing the paths, send the arp-reply related to this arp-request
         self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                 orig_src_hw)
-        #print "arp-reply enviado para %s" % orig_src_ip
+        print "arp-reply enviado para %s" % orig_src_ip
         
         # Update the list of replied ARP-Requests
         self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
@@ -1273,31 +1159,12 @@ class openwimesh (EventMixin):
         icmp_type = ip_pkt.next.type
         icmp_code = ip_pkt.next.code
 
-
         #th = Thread(target=self._async_call, args=(self.async_gnetgraph.get_fortune("BBMP"),))
         #th.start()
         # recv_node_hw: host who generated the packetin
-
         dpid = dpidToStr(event.dpid)
-
-        print "################### ICMP ID: %s" % ip_pkt.next.next.id
-        if nw_dst == '192.168.1.1':
-            # RECEBIDO PING ECHO REQUEST de outro possível domínio global
-            # 
-            # ESTA MSG FOI GERADA POR UM:
-            # nping --dest-mac 00:00:00:aa:00:06 --icmp --icmp-id 3 192.168.1.1 -c 2
-            # nping --dest-mac <MAC_VIZINHO_FORA_DO_DOMINIO> --icmp --icmp-id <GLOBALCTRL_ID> <IP_REDE_FAKE> -c <COUNT>
-
-            #extrair CID do ICMP ID e enviar ao GlobalCTRL, para então se decidir quem será o ÚNICO global da rede
-            cid = ip_pkt.next.next.id
-
-            #
-            # TODO: send CID, DPID(MAC) and src IP to global via Pyro
-            # 
-
         recv_node_hw = self.net_graph.get_by_attr('dpid', dpid)
         if not recv_node_hw:
-
             log.debug("DROP packet: unknown switch %s sending packet-in", dpid)
             self._drop(event)
             return
@@ -1376,20 +1243,13 @@ class openwimesh (EventMixin):
 
     
     def _async_add_edge(self,node1,node2):
-        try:
-            self.gnet_graph.add_edge(node1, node2,
-                            weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-            self.gnet_graph.add_edge(node2, node1,
-                            weight=NetGraph.DEFAULT_WEIGHT, wired=True)
-        except Exception as e:
-            log.debug("ERRO SYNC ADD EDGE - %s", e)
-            openwimesh.error_count_ag+=1
+        self.gnet_graph.add_edge(node1, node2,
+                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
+        self.gnet_graph.add_edge(node2, node1,
+                        weight=NetGraph.DEFAULT_WEIGHT, wired=True)
 
     def _async_add_node(self,hw,ip,cid):
-        try:
-            self.gnet_graph.add_node(hw, ip, cid)
-        except Exception as e:
-            log.debug("ERRO SYNC ADD NODE - %s", e)
+        self.gnet_graph.add_node(hw, ip, cid)
 
     
 
@@ -1458,7 +1318,7 @@ class openwimesh (EventMixin):
                 th1.start()
 
             
-            #print("Gnet.nodes:",self.gnet_graph.nodes())
+            print("Gnet.nodes:",self.gnet_graph.nodes())
             #print(self.gnet_graph.edges())
 
                 
@@ -1468,11 +1328,7 @@ class openwimesh (EventMixin):
         if sw_hw_addr == ofctl_hw_addr:
             ofctl_ip = self.net_graph.get_ip_ofctl()
             cid = self.net_graph.get_cid_ofctl()
-            try:
-                self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
-            except Exception as e:
-                log.debug("Global communication failure (%s)",e)
-                print "Global communication failure (%s)" % e
+            self.gnet_graph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
 
         # if self.max_sw_capacity < self.net_graph.number_of_nodes():
         #     print "calma"
@@ -1644,12 +1500,24 @@ def _poller_check_global_task(ofpox, interval, timeout):
     ofctl_hw = openwimesh.netgraph.get_hw_ofctl()
     ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
     nodes = openwimesh.netgraph.nodes()
+    openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
+    openwimesh.gnetgraph.update_nodes(cid, nodes)
+    log.debug("Checking if there are tasks from global_app")
     try:
-        openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
-        openwimesh.gnetgraph.update_nodes(cid, nodes)
-        log.debug("Checking if there are tasks from global_app")
+        new_ofctls_list = openwimesh.gnetgraph.get_new_ofctls_list(cid)
+        log.debug("NEW_OFCTLS_LIST = %s", new_ofctls_list)
     except Exception as e:
-            log.debug("ERRO UPDATE NODES GLOBAL - %s", e)
+        log.debug("ERROR get new_ofctls_list (%s)",e)
+    if len(new_ofctls_list) > 0:
+        for new_ofctl_hw in new_ofctls_list:
+            try:
+                openwimesh.gnetgraph.add_becoming_ofctl(new_ofctl_hw)
+            except Exception as e:
+                log.debug("Error add_becoming_ofctl (%s)",e)
+                continue
+            th = Thread(target=openwimesh.make_ofctl, args=(new_ofctl_hw,))
+            th.start()
+    
     # new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
     # #print new_ofctl_hw
     # if new_ofctl_hw:
