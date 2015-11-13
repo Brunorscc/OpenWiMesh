@@ -34,8 +34,8 @@ class GNetGraph(NetGraph):
         else:
             return None
 
-    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000):
-        self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority, 'last_update': time()}
+    def update_ofctl_list(self, cid, hwaddr, ipaddr, priority=1000,last_update=time()):
+        self.ofctl_list[cid]= {'hwaddr': hwaddr, 'ipaddr': ipaddr, 'priority': priority, 'last_update': last_update}
 
     def remove_ofctl(self,cid):
         if cid in self.ofctl_list:
@@ -69,6 +69,18 @@ class GNetGraph(NetGraph):
             if node[1].get(attr, None) == value:
                 node_list.append(node[0])
         return node_list
+
+    def get_node_list_by_path_len(self,nodes,cid,thold=2):
+        nl = []
+        dst_mac = self.ofctl_list[cid]['hwaddr']
+        for node in nodes:
+            try:
+                if len(shortest_path(self, node, dst_mac, 'weight')) > thold:
+                    nl.append(node)
+            except:
+                continue
+
+        return nl
 
     def add_edge(self, source_mac, target_mac, signal=None,
             traffic_byt=None, speed_mbps=None, d_speed_mbps=None,

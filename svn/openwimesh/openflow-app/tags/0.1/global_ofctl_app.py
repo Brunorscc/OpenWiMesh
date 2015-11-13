@@ -27,17 +27,8 @@ class global_ofcl_app(object):
 		self.ip_ofct_list=list(range(225,253))
 		self.becoming_ofctl = []
 		self.connecting_nodes = {}
-		self.migrating_nodes = {}
-
-	@Pyro4.oneway
-	def add_migrating_node(self,hw_addr,cid):
-		logging.debug("ADD MIGRATING NODES HW= %s  CID= %s", hw_addr,cid)
-		try:
-			self.migrating_nodes[hw_addr] = cid
-		except Exception as e:
-			logging.debug("DISGRAAAACA - %s", e)
-
-		logging.debug("Migrating Nodes is %s", self.migrating_nodes)
+		self.creating_new_ofctl_task_list = {}
+		self.new_ofctls_lock = False
 
 	@Pyro4.oneway
 	def set_gcid(self,gcid):
@@ -64,7 +55,6 @@ class global_ofcl_app(object):
 						nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
 						for node in nodes:
 							logging.debug('Removing node %s',node)
-							#add lista de espera
 							self.gnet_graph.remove_node(node)
 						logging.debug('Removing ofctl %s', cid)
 						ofctl_ip = self.gnet_graph.ofctl_list[cid]['ipaddr']
@@ -83,6 +73,8 @@ class global_ofcl_app(object):
 						del self.connecting_nodes[node]
 			except Exception as e:
 				logging.debug("Problema remover connecting_nodes (%s)",e)
+
+			self.new_ofctls()
 					
 			logging.debug("sleeping")
 			time.sleep(5)
@@ -108,13 +100,6 @@ class global_ofcl_app(object):
 		if orig_src_hw in self.connecting_nodes:
 			return "connecting"
 
-		logging.debug("#### ANTES DO Migrating %s - IN %s ##### ", orig_src_hw, self.migrating_nodes)
-		if orig_src_hw in self.migrating_nodes:
-			logging.debug("#### ANTES DO 2-IF Migrating %s = %s ##### ", orig_src_hw, cid)
-			if self.migrating_nodes[orig_src_hw] != cid:
-				logging.debug("#### Migrating %s #####", orig_src_hw)
-				return "Migrating"
-
 		self.connecting_nodes[orig_src_hw]= {'cid': cid, 'time': time.time()}
 		logging.debug("self.gnet_graph.ofctl_list[cid]['ipaddr'] != 192.168.199.254 is %s",(self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254'))
 		if self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254':
@@ -132,6 +117,41 @@ class global_ofcl_app(object):
 			for node in remove_list:
 					logging.debug("remove node %s", node)
 					self.gnet_graph.remove_node(node)
+
+	def new_ofctls(self):
+		self.new_ofctls_lock = True
+		try:
+			if self.gnet_graph.ofctl_list:
+				for cid in self.gnet_graph.ofctl_list:
+					nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
+					ofctl_hw = self.gnet_graph.ofctl_list[cid]['hwaddr']
+					try: 
+						nodes.remove(ofctl_hw)
+					except Exception as e:
+						logging.debug("Erro remove nodes (%e) - nodes = %s - ofctl_hw = %s", e,nodes, ofctl_hw)
+
+					new_ofctls_list = self.gnet_graph.get_node_list_by_path_len(nodes,cid)
+					self.creating_new_ofctl_task_list[cid]= new_ofctls_list
+					nodes = list(set(nodes) - set(new_ofctls_list))
+
+					#if len(nodes) - sum([ i in nodes for i in self.becoming_ofctl]) > 2:
+					#nodes = list(set(nodes) - set(self.becoming_ofctl))
+					#if len(nodes) > 2:
+					#	self.creating_new_ofctl_task_list[cid].append(random.choice(nodes))
+		except Exception as e:
+			logging.debug("Erro generating new_ofctls_list (%s)",e)
+		self.new_ofctls_lock = False
+
+	def get_new_ofctls_list(self,cid):
+		if not self.new_ofctls_lock:
+			if cid in self.creating_new_ofctl_task_list:
+				new_ofctls_list = self.creating_new_ofctl_task_list[cid]
+				logging.debug("ofctl %s has new_ofctls %s",cid,new_ofctls_list)
+				return new_ofctls_list
+		
+		return []
+
+
 
 	def check_creating_new_ofctl(self,cid):
 		if cid not in self.gnet_graph.ofctl_list:
