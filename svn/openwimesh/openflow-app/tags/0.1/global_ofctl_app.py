@@ -25,7 +25,7 @@ class global_ofcl_app(object):
 		self.cid_counter = 0
 		self.gcid = None
 		self.ip_ofct_list=list(range(225,253))
-		self.becoming_ofctl = []
+		self.becoming_ofctl = {}
 		self.connecting_nodes = {}
 		self.creating_new_ofctl_task_list = {}
 		self.new_ofctls_lock = False
@@ -67,12 +67,27 @@ class global_ofcl_app(object):
 					logging.debug("Problema %s",e)
 
 			try:
+				dead = []
 				for node in self.connecting_nodes:
 					now = time.time()
 					if now - self.connecting_nodes[node]['time'] > 8:
-						del self.connecting_nodes[node]
+						dead.append(node)
+
+				for node in dead:
+					del self.connecting_nodes[node]
 			except Exception as e:
 				logging.debug("Problema remover connecting_nodes (%s)",e)
+
+			try:
+				dead = []
+				for node in self.becoming_ofctl:
+					now = time.time()
+					if now - self.becoming_ofctl[node] > 20:
+						dead.append(node)
+				for node in dead:
+					self.del_becoming_ofctl(node)
+			except Exception as e:
+				logging.debug("Problema remover becoming_ofctl (%s)",e)
 
 			self.new_ofctls()
 					
@@ -82,10 +97,12 @@ class global_ofcl_app(object):
 
 	def add_becoming_ofctl(self,sw_mac):
 		logging.debug('%s will be an ofctl',sw_mac)
-		self.becoming_ofctl.append(sw_mac)
+		self.becoming_ofctl[sw_mac] = time.time()
 
 	def del_becoming_ofctl(self,sw_mac):
-		self.becoming_ofctl.remove(sw_mac)
+		if sw_mac in self.becoming_ofctl:
+			logging.debug('delete %s from becoming_ofctl',sw_mac)
+			del self.becoming_ofctl[sw_mac]
 
 	def get_ofctl_free_ip(self):
 		free_ip="192.168.199."
@@ -93,12 +110,14 @@ class global_ofcl_app(object):
 		logging.debug("%s will release",free_ip)
 		return free_ip
 
-	def check_arp_req_to_ofctl(self,cid,orig_src_hw,dst_node_ip):
+	def check_arp_req_to_ofctl(self,cid,orig_src_hw,dst_node_ip,recv_node_hw):
 		logging.debug('ARP request from ofctl %s, who-has-%s-tell-%s',cid,dst_node_ip,orig_src_hw)
 		if orig_src_hw in self.gnet_graph.nodes():
 			return "connected"
 		if orig_src_hw in self.connecting_nodes:
 			return "connecting"
+		if recv_node_hw in self.becoming_ofctl:
+			return "becoming_ofctl"
 
 		self.connecting_nodes[orig_src_hw]= {'cid': cid, 'time': time.time()}
 		logging.debug("self.gnet_graph.ofctl_list[cid]['ipaddr'] != 192.168.199.254 is %s",(self.gnet_graph.ofctl_list[cid]['ipaddr'] != '192.168.199.254'))
@@ -130,6 +149,7 @@ class global_ofcl_app(object):
 					except Exception as e:
 						logging.debug("Erro remove nodes (%e) - nodes = %s - ofctl_hw = %s", e,nodes, ofctl_hw)
 
+					nodes = list(set(nodes) - set(self.becoming_ofctl.keys()))
 					new_ofctls_list = self.gnet_graph.get_node_list_by_path_len(nodes,cid)
 					self.creating_new_ofctl_task_list[cid]= new_ofctls_list
 					nodes = list(set(nodes) - set(new_ofctls_list))
@@ -199,7 +219,7 @@ class global_ofcl_app(object):
 		self.gnet_graph.update_ofctl_list(cid,ofctl_hw,ofctl_ip)
 		self.gnet_graph.ofctl_list[cid]['last_update'] = time.time()
 		logging.debug("ofctl %s time %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
-		del_becoming_ofctl(self,ofctl_hw)
+		self.del_becoming_ofctl(ofctl_hw)
 
 	def get_cid_free(self):
 		self.cid_counter += 1
