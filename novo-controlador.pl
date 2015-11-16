@@ -1,6 +1,6 @@
 use Net::SSH::Expect;
 
-($pwd, $type, $host,$controller,$uri,$global_ip, $global_hw, $cid, $crossdomain) = @ARGV;
+($pwd, $type, $host,$controller,$uri,$global_ip, $global_hw, $cid, $crossdomain, $monit) = @ARGV;
 my $ssh = Net::SSH::Expect->new (
    host => $host, 
    password=> '123', 
@@ -24,7 +24,7 @@ $ssh->waitfor("/# $/");
 $ssh->send("pwd");
 $ssh->waitfor("/# $/");
 if (defined $uri){
-	$ssh->send("bash /home/openwimesh/migrate_controller.sh $type $controller $uri $global_ip $global_hw $cid $crossdomain");
+	$ssh->send("bash /home/openwimesh/migrate_controller.sh $type $controller $uri $global_ip $global_hw $cid $crossdomain $monit");
 }else{
 	$ssh->send("bash /home/openwimesh/migrate_controller.sh $type $controller");
 }

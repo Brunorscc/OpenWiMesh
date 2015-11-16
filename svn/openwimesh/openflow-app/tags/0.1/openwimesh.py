@@ -83,6 +83,7 @@ def handle_PacketIn_Function (self, event):
         """
         Handles packet in messages from some switch
         """
+        pktin_tstamp = time.time()
         ether_pkt = event.parse()
         dpid = dpidToStr(event.dpid)
 
@@ -203,6 +204,8 @@ def handle_PacketIn_Function (self, event):
             elif ip_pkt.protocol == packet.ipv4.TCP_PROTOCOL:
                 tcp = ip_pkt.find('tcp')
                 #print "chegou um tcp"
+                # if tcp.dstport == iperf_port:
+                # file.write("ORIG %s - DST %s - TSTAMP %s" % variaveis..)
                 if tcp.dstport == 6633:
                     # TODO: rule expired on communication node to controller
                     pass
@@ -267,7 +270,7 @@ class openwimesh (EventMixin):
     dropfake = None
     fakesw = None
     startuptime = 0
-    monit_path = 0
+    #monit_path = 0
     f_lat = None
     f_conv = None
     tstamp_last = 0
@@ -321,13 +324,15 @@ class openwimesh (EventMixin):
             return 
 
         now = time.time()
-        openwimesh.f_conv.write("NEW-CONTROLLER: %s,%f,%f\n" % ( new_ofctl_hw , now , now - openwimesh.startuptime))
-        openwimesh.f_conv.flush()
+        log.debug("CTRL PATH = /home/openwimesh/latencia/%s-16n-IP.txt", openwimesh.monit_path)
+        
 
-        log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
+        log.debug("PARMETROS: %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, openwimesh.monit_path))
 
         try:
-            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, now))
+            openwimesh.f_conv.write("NEW-CONTROLLER: %s,%f,%f\n" % ( new_ofctl_hw , now , now - openwimesh.startuptime))
+            openwimesh.f_conv.flush()
+            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, openwimesh.monit_path))
         except Exception as e:
             log.debug("falha ao criar controlador remoto %s",e)
             openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
@@ -480,7 +485,8 @@ class openwimesh (EventMixin):
         #f_flu = open("/home/openwimesh/dumpfluxos.txt", "w")
         #f_flu.write("Experiment,Switch,SRC_IP,DST_IP,SRC_PORT,DST_PORT,Packet_Count,Byte_Count,Duration_Sec,Duration_Nsec,Delta_Packet_Count,Delta_Byte_Count,Delta_Duration_Sec,Delta_Duration_Nsec\n")
         #f_flu.flush()
-        
+        self.monit= monit
+        openwimesh.monit_path = self.monit
         self.f_latencia = open("/home/openwimesh/latencia/%s-16n-%s-lat" % (monit, ofip), "w")
         self.f_conv = open("/home/openwimesh/tempo-converg/%s-n16-%s-conv" % (monit, ofip), "w")
         openwimesh.f_lat = self.f_latencia
@@ -923,6 +929,18 @@ class openwimesh (EventMixin):
             if in_port != of.OFPP_LOCAL:
                 match_fields['dl_dst'] = EthAddr(new_src_hw)
             #MAIS ARMENGUE
+            # TODO:
+            
+            # LOG ("PORTA DO IPERF- REGISTRAR TEMPO DE INSTALAR FLUXO ")
+      #      try:
+                #print "valendo"
+     #           if str(match_fields['tp_dst']) and str(match_fields['tp_dst']) == "6633":
+    #                porta_destino = "6633"
+   #                 if porta_destino:
+  #                      print "funcionou?"
+ #           except Exception, e:
+#                log.debug("WARNING:  %s", e)
+
             if dst_ip in self.fake_sw and porta_destino :
                 (status, msg) = self._install_flow_entry(sw, match_fields, actions, buffer_id)
             else:

@@ -89,8 +89,19 @@ class global_ofcl_app(object):
 			except Exception as e:
 				logging.debug("Problema remover becoming_ofctl (%s)",e)
 
-			self.new_ofctls()
-					
+			try:
+				self.new_ofctls()
+			except Exception as e:
+				logging.debug("Problema add new ofctls (%s)",e)
+
+			try:
+				nodes_without_cid = self.gnet_graph.check_by_attr_cid()
+				for cada in nodes_without_cid:
+					logging.debug("Removendo node sem CID %s", cada)
+					self.gnet_graph.remove_node(cada)
+			except Exception as e:
+				logging.debug("ERRO Removendo node sem CID (%s)", e)
+
 			logging.debug("sleeping")
 			time.sleep(5)
 

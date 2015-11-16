@@ -63,6 +63,13 @@ class GNetGraph(NetGraph):
                 return node[0]
         return None
 
+    def check_by_attr_cid(self):
+        nodes = []
+        for node in self.nodes(data=True):# porque data=True?
+            if not node[1].get('cid', None):
+                nodes.append(node[0])
+        return nodes
+
     def get_node_list_by_attr(self, attr, value):
         node_list = []
         for node in self.nodes(data=True):# porque data=True?
