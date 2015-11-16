@@ -273,6 +273,7 @@ class openwimesh (EventMixin):
     tstamp_last = 0
     tstamp_backoff = 0
     backoff = 0
+    calc_tstamp_backoff = None
 
     #f_lat = open("/home/openwimesh/latencia/%s-latencia-ctrl-%s.txt" % (monit, ofip), "w")
     #f_lat.write("Switch,Timestamp,RTT\n")
@@ -326,7 +327,7 @@ class openwimesh (EventMixin):
         log.debug("PARMETROS: %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw))
 
         try:
-            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, time.time()))
+            os.system("bash /home/openwimesh/novo-controlador.sh 1 %s %s %s %s %s %s %s %s" % (sw_ip, new_ofctl_ip, openwimesh.globalofctluri, global_ofctl_ip, global_ofctl_hw, cid, crossdomain_sw, now))
         except Exception as e:
             log.debug("falha ao criar controlador remoto %s",e)
             openwimesh.gnetgraph.del_becoming_ofctl(new_ofctl_hw)
@@ -470,6 +471,8 @@ class openwimesh (EventMixin):
                 log.debug("  %s -> %s" % (n, g.node[n]['ip']))
 
 
+
+
     def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain, monit):
         
 
@@ -489,6 +492,8 @@ class openwimesh (EventMixin):
         self.net_graph = NetGraph()
         #self.gnet_graph = GNetGraph()
         openwimesh.netgraph = self.net_graph
+
+        openwimesh.calc_tstamp_backoff = self.calc_tstamp_backoff
 
         # array of directly connected nodes, each element
         # of the array is the datapath-id of the node
@@ -562,6 +567,7 @@ class openwimesh (EventMixin):
         self.thread_count = 0
         
         # variable used to track a bug. TEMPORARY!!!
+        # PRA QUE SERVE ESSA VARIAVEL?
         self.not_in_graph = []
         # variavel armengue para fingir que è outro controlador
         self.fake_sw = {}
@@ -1623,27 +1629,51 @@ def _poller_check_global_task(ofpox, interval, timeout):
     if not openwimesh.gnetgraph:
         return
 
+    #try:
+        #if openwimesh.backoff > 5:
+           # log.debug("FINISH ME")
+            #ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
+            #subprocess.call("/home/openwimesh/migrate_poxcontroller.sh")
+            #os.system("/home/openwimesh/migrate_poxcontroller.sh")
+            #os.execl('/home/openwimesh/migrate_poxcontroller.sh', '')
+    #except Exception as e:
+    #    log.debug("ERRO BACKOFF KILL - %s", e)
+
+
     cid = openwimesh.netgraph.get_cid_ofctl()
     ofctl_hw = openwimesh.netgraph.get_hw_ofctl()
     ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
     nodes = openwimesh.netgraph.nodes()
-    openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
-    openwimesh.gnetgraph.update_nodes(cid, nodes)
-    log.debug("Checking if there are tasks from global_app")
-    try:
-        new_ofctls_list = openwimesh.gnetgraph.get_new_ofctls_list(cid)
-        log.debug("NEW_OFCTLS_LIST = %s", new_ofctls_list)
-    except Exception as e:
-        log.debug("ERROR get new_ofctls_list (%s)",e)
-    if len(new_ofctls_list) > 0:
-        for new_ofctl_hw in new_ofctls_list:
-            try:
-                openwimesh.gnetgraph.add_becoming_ofctl(new_ofctl_hw)
-            except Exception as e:
-                log.debug("Error add_becoming_ofctl (%s)",e)
-                continue
-            th = Thread(target=openwimesh.make_ofctl, args=(new_ofctl_hw,))
-            th.start()
+
+    now = time.time()
+
+    if now > openwimesh.tstamp_backoff:
+        try:
+            openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
+            openwimesh.gnetgraph.update_nodes(cid, nodes)
+            log.debug("Checking if there are tasks from global_app")
+            new_ofctls_list = openwimesh.gnetgraph.get_new_ofctls_list(cid)
+            log.debug("NEW_OFCTLS_LIST = %s", new_ofctls_list)
+            
+            if len(new_ofctls_list) > 0:
+                for new_ofctl_hw in new_ofctls_list:
+                    try:
+                        openwimesh.gnetgraph.add_becoming_ofctl(new_ofctl_hw)
+                    except Exception as e:
+                        log.debug("Error add_becoming_ofctl (%s)",e)
+                        continue
+                    th = Thread(target=openwimesh.make_ofctl, args=(new_ofctl_hw,))
+                    th.start()
+
+            openwimesh.tstamp_last= time.time()
+            openwimesh.backoff = 0
+        except Exception as e:
+            openwimesh.backoff+=1
+            openwimesh.tstamp_backoff = openwimesh.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+            log.debug("ERROR get new_ofctls_list (%s)",e)
+            log.debug(" CHECK GLOBAL TASK - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+            
+    
     
     # new_ofctl_hw = openwimesh.gnetgraph.check_creating_new_ofctl(cid)
     # #print new_ofctl_hw
