@@ -142,11 +142,40 @@ class global_ofcl_app(object):
 			logging.debug("update ofct %s nodes list", cid)
 			nodes = self.gnet_graph.get_node_list_by_attr('cid', cid)
 
-			remove_list = list(set(nodes)-set(nl))
+			local_nodes = []
+			for n in nl:
+				local_nodes.append(n[0])
+
+			remove_list = list(set(nodes)-set(local_nodes))
+			add_list= list(set(local_nodes)-set(nodes))
+			
+			#remove_list = [a for a in nodes if a not in nl]
+			#add_list = [a for a in <lista-local> if a not in <lista-global>]
 
 			for node in remove_list:
 					logging.debug("remove node %s", node)
+					
+					#TROCAR LINHA ABAIXO POR: self.gnet_graph.remove_node(node[0])
+					
 					self.gnet_graph.remove_node(node)
+			logging.debug("NL - %s", nl)
+			logging.debug("NODES - %s", nodes)
+			logging.debug("Remove LIST - %s", remove_list)
+			logging.debug("ADD LIST - %s", add_list)
+
+			try:
+				for node in add_list:
+					logging.debug("add node %s", node)
+					IP = None
+					for n in nl:
+						if n[0] == node:
+							IP=n[1]
+					if IP:
+						self.add_node(node, IP, cid)
+					#TROCAR LINHA ABAIXO POR: self.gnet_graph.remove_node(node[0])
+			except Exception as e:
+				logging.debug("Erro add_node no grafo global pq detectou no grafo - %s", e)
+				
 
 	def new_ofctls(self):
 		self.new_ofctls_lock = True
@@ -222,7 +251,10 @@ class global_ofcl_app(object):
 				logging.debug('The path from %s to %s is through the crossdomain link(%s-%s)',src_ip,dst_ip,path[i],path[i+1])
 				return crossd
 
-
+	@Pyro4.oneway
+	def send_tstamp(self,cid,tstamp):
+		delay = time.time() - tstamp
+		logging.debug("Delay_CTRL,%s,%s", cid, delay)
 
 	@Pyro4.oneway
 	def add_ofctl(self,cid,ofctl_hw,ofctl_ip):
@@ -230,6 +262,7 @@ class global_ofcl_app(object):
 		self.gnet_graph.update_ofctl_list(cid,ofctl_hw,ofctl_ip)
 		self.gnet_graph.ofctl_list[cid]['last_update'] = time.time()
 		logging.debug("ofctl %s time %s",cid,self.gnet_graph.ofctl_list[cid]['last_update'])
+		
 		self.del_becoming_ofctl(ofctl_hw)
 
 	def get_cid_free(self):

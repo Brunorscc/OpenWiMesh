@@ -480,15 +480,18 @@ class openwimesh (EventMixin):
 
     def __init__ (self, ofmac, ofip, cid, priority, algorithm, gcid, ofglobalhw, ofglobalip, uri, crossdomain, monit):
         
-
         # MONITORING FILES
         #f_flu = open("/home/openwimesh/dumpfluxos.txt", "w")
         #f_flu.write("Experiment,Switch,SRC_IP,DST_IP,SRC_PORT,DST_PORT,Packet_Count,Byte_Count,Duration_Sec,Duration_Nsec,Delta_Packet_Count,Delta_Byte_Count,Delta_Duration_Sec,Delta_Duration_Nsec\n")
         #f_flu.flush()
+
         self.monit= monit
         openwimesh.monit_path = self.monit
-        self.f_latencia = open("/home/openwimesh/latencia/%s-16n-%s-lat" % (monit, ofip), "w")
-        self.f_conv = open("/home/openwimesh/tempo-converg/%s-n16-%s-conv" % (monit, ofip), "w")
+
+        #opening monitoring dump files
+        self.f_latencia = open("/home/openwimesh/capturas/%s/latencia/16n-%s-lat" % (monit, ofip), "w")
+        self.f_conv = open("/home/openwimesh/capturas/%s/tempo-converg/n16-%s-conv" % (monit, ofip), "w")
+        
         openwimesh.f_lat = self.f_latencia
         openwimesh.f_conv = self.f_conv
 
@@ -517,8 +520,6 @@ class openwimesh (EventMixin):
         # The first node of the graph is the own global controller
         
         self.net_graph.add_global_ofctl(gcid, ofglobalhw, ofglobalip)
-
-
 
         self.net_graph.add_ofctl(cid, ofmac, ofip)
         self.net_graph.update_ofctl_list(cid, ofmac, ofip, priority)
@@ -1661,14 +1662,19 @@ def _poller_check_global_task(ofpox, interval, timeout):
     cid = openwimesh.netgraph.get_cid_ofctl()
     ofctl_hw = openwimesh.netgraph.get_hw_ofctl()
     ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
-    nodes = openwimesh.netgraph.nodes()
-
+    nodes = openwimesh.netgraph.nodes(data=True)
+    nodes_with_ip= []
+    for n in nodes:
+        l = [n[0],n[1]['ip']]
+        nodes_with_ip.append(l)
+    log.debug("NODES WITH IP - %s", nodes_with_ip)
     now = time.time()
 
     if now > openwimesh.tstamp_backoff:
         try:
+            openwimesh.gnetgraph.send_tstamp(cid,now)
             openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
-            openwimesh.gnetgraph.update_nodes(cid, nodes)
+            openwimesh.gnetgraph.update_nodes(cid, nodes_with_ip)
             log.debug("Checking if there are tasks from global_app")
             new_ofctls_list = openwimesh.gnetgraph.get_new_ofctls_list(cid)
             log.debug("NEW_OFCTLS_LIST = %s", new_ofctls_list)

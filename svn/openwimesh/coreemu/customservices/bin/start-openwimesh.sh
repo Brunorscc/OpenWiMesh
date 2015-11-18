@@ -148,9 +148,15 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
   
    URI=$(cat /tmp/uri.txt)
    log "server uri is $URI"
-
    TIME=`date +%Y-%m-%d-%H:%M`
-   #/home/openwimesh/trafego-controle.sh $IPADDR $TIME-trafcontrole-$IPADDR.txt
+   log "PWD= `pwd`"
+   #creating directories for captures
+   /home/openwimesh/create-dirs-capture.sh $TIME &
+
+   echo -e "$TIME\n`pwd`" > /home/openwimesh/capturas/monit-atual.conf
+   #script to periodic dump switches's ovs flow table
+   #/home/openwimesh/dump-flows.sh $TIME $IPADDR &
+   
 
    log "Starting Openflow Controller with OPENWIMESH app (ipaddr=$IPADDR, hwaddr=$HWADDR, cid=$CID, priority=$PRIORITY)"
    if [ -z "$DISPLAY" ]; then
