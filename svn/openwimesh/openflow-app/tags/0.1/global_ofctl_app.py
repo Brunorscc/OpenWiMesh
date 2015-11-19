@@ -191,13 +191,20 @@ class global_ofcl_app(object):
 
 					nodes = list(set(nodes) - set(self.becoming_ofctl.keys()))
 					new_ofctls_list = self.gnet_graph.get_node_list_by_path_len(nodes,cid)
-					self.creating_new_ofctl_task_list[cid]= new_ofctls_list
-					nodes = list(set(nodes) - set(new_ofctls_list))
+					logging.debug("NODES - OFCTLS LIST - %s", nodes)
+					logging.debug("NEW OFCTLS LIST - %s", new_ofctls_list)
+					if len(new_ofctls_list) > 0:
+						X = random.choice(new_ofctls_list)
+						logging.debug("RANDOM CHOICE OFCTLS LIST - X -%s", X)
+						l = [X]
+						logging.debug("RANDOM CHOICE OFCTLS LIST - L - %s", l)
+						self.creating_new_ofctl_task_list[cid]= l
+						continue
+					
+					#nodes = list(set(nodes) - set(new_ofctls_list))
 
-					#if len(nodes) - sum([ i in nodes for i in self.becoming_ofctl]) > 2:
-					#nodes = list(set(nodes) - set(self.becoming_ofctl))
-					#if len(nodes) > 2:
-					#	self.creating_new_ofctl_task_list[cid].append(random.choice(nodes))
+					if len(nodes) > 3:
+						self.creating_new_ofctl_task_list[cid] = [random.choice(nodes)]
 		except Exception as e:
 			logging.debug("Erro generating new_ofctls_list (%s)",e)
 		self.new_ofctls_lock = False
@@ -271,6 +278,10 @@ class global_ofcl_app(object):
 
 	def get_fortune(self,name):
 		return self.gnet_graph.get_fortune(name)
+
+	def send_latency(self):
+		now = time.time()
+		return now
 
 	@Pyro4.oneway
 	def add_node(self, hwaddr, ip=None, cid=None):

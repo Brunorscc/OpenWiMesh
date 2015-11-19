@@ -63,7 +63,7 @@ import Pyro4
 from threading import Thread
 
 log = core.getLogger()
-Pyro4.config.COMMTIMEOUT = 1.0
+Pyro4.config.COMMTIMEOUT = 2.0
 # time between arp-resquests that we don't reply again
 ARP_REQ_DELAY=10
 
@@ -283,6 +283,14 @@ class openwimesh (EventMixin):
     #f_lat.flush()
 
     #f_conv = open("/home/openwimesh/monit/%s/tempo_convergencia-%s.txt" % (monit, ofip), "w")
+
+    @classmethod
+    def latency_global(cls):
+        inicio = time.time()
+        x = openwimesh.gnetgraph.send_latency()
+        latencia = time.time() - inicio
+        oneway = x - inicio
+        log.debug("LATENCIA GLOBAL - %s -- ONE WAY GLOBAL - %s", latencia, oneway)
 
     @classmethod
     def who_is_globalctl(cls):
@@ -1388,8 +1396,9 @@ class openwimesh (EventMixin):
         """
         Handles a switch that has established a connection to the controller
         """
-        log.debug("!@# Connection UP from %02d (%s) - time from startup: %f" % (event.dpid, event.connection, time.time() - self.startup_time))
-        openwimesh.f_conv.write("%s,%f,%f\n"%(event.connection, time.time(), time.time() - self.startup_time))
+        now = time.time()
+        log.debug("!@# Connection UP from %02d (%s) - time from startup: %f" % (event.dpid, event.connection, now - self.startup_time))
+        openwimesh.f_conv.write("%s,%f,%f\n"%(dpidToStr(event.dpid), now, now - self.startup_time))
         openwimesh.f_conv.flush()
 
         sw_hw_addr = None

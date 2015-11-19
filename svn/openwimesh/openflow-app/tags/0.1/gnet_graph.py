@@ -77,7 +77,7 @@ class GNetGraph(NetGraph):
                 node_list.append(node[0])
         return node_list
 
-    def get_node_list_by_path_len(self,nodes,cid,thold=2):
+    def get_node_list_by_path_len(self,nodes,cid,thold=3):
         nl = []
         dst_mac = self.ofctl_list[cid]['hwaddr']
         for node in nodes:
