@@ -6,7 +6,16 @@ DIR_EXEC=`ls /tmp | grep pycore`
 NODES=`ls /tmp/$DIR_EXEC/ | grep conf`
 
 CAPT="/home/openwimesh/capturas/$EXEC"
+
+while [ -d "$CAPT" ]
+do
+	echo -e "ERRO: A pasta '$EXEC' já existe.\n  Escolha um novo nome para a pasta de dump monitoramento:"
+	read EXEC
+	CAPT="/home/openwimesh/capturas/$EXEC"
+done
+
 mkdir "$CAPT"
+
 
 	echo "QUAL COMENTARIO GOSTARIA DE INSERIR SOBRE A TOPOLOGIA? "
 

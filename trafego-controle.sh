@@ -10,5 +10,5 @@ do
 	`date +%s` >> $PATH
 	ovs-ofctl dump-flows ofsw0 >> $PATH
 	echo "#" >> $PATH
-	sleep 30;
+	sleep 5;
 done

@@ -92,6 +92,8 @@ for i in $OWM_IFACES; do
     ovs-ofctl mod-port ofsw0 $i no-packet-in
 done
 
+iperf3 -s -p 1999 &
+
 log " PRI_MYIP = $PRI_MYIP"
 if [ "$PRI_MYIP" = "192.168.199.1" ]; then
   PRI_MYIP=$OWM_OFCTL
