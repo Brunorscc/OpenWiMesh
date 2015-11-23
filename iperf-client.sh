@@ -1,11 +1,10 @@
 #!/bin/bash
 
-sleep 10
+sleep 120
 
 NODE_LIST="/home/openwimesh/node_list.txt"
 IPLOCAL=$(LANG=C /sbin/ifconfig ofsw0 2>/dev/null | egrep -o "inet addr:[^ ]*" |cut -d: -f2)
 #QTD=`cat $NODE_LIST | wc -l`
-
 
 while true
 do
@@ -19,7 +18,7 @@ do
   	date +%s >> /home/openwimesh/capturas/delay-slowpath/$IPLOCAL
     ping $IP -c 4 >> /home/openwimesh/capturas/delay-slowpath/$IPLOCAL
     #IP=`shuf -n 1 $NODE_LIST`
-    iperf3 -c $IP -p 1999 -b 100K -t 10 
+   # iperf3 -c $IP -p 1999 -b 100K -t 10 
     #iperf3 -c $IP -p 1999 -b 100K -t 10 >> iperf.log
   fi
 done

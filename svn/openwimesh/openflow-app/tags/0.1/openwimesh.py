@@ -61,6 +61,7 @@ import os
 import random
 import Pyro4
 from threading import Thread
+import datetime
 
 log = core.getLogger()
 Pyro4.config.COMMTIMEOUT = 2.0
@@ -495,6 +496,7 @@ class openwimesh (EventMixin):
 
         self.monit= monit
         openwimesh.monit_path = self.monit
+        openwimesh.time_delay= time.mktime(datetime.datetime.strptime(monit, "%Y-%m-%d-%H:%M").timetuple()) + 30
 
         #opening monitoring dump files
         self.f_latencia = open("/home/openwimesh/capturas/%s/latencia/16n-%s-lat" % (monit, ofip), "w")
@@ -831,8 +833,8 @@ class openwimesh (EventMixin):
         #print (self.gnet_graph.path(src_ip,dst_ip))
         #th = Thread(target=self._async_call, args=( self.async_gnetgraph.path( src_ip,dst_ip ), ) )
         #th.start()
-        print "Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
-                            dst_ip, match_fields)
+        #print "Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
+        #                    dst_ip, match_fields)
         log.debug("Installing path %s -> %s -> %s. Match: %s" % (src_ip, path,
             dst_ip, match_fields))
         if len(path) == 0:
@@ -897,7 +899,8 @@ class openwimesh (EventMixin):
                 if str(match_fields['tp_dst']) and str(match_fields['tp_dst']) == "6633":
                     porta_destino = "6633"
                     if porta_destino:
-                        print "funcionou?"
+                        pass
+                        #print "funcionou?"
             except Exception, e:
                 log.debug("WARNING:  %s", e)
 
@@ -905,7 +908,8 @@ class openwimesh (EventMixin):
                 if str(match_fields['tp_src']) and str(match_fields['tp_src']) == "6633":
                     porta_destino = "6633"
                     if porta_destino:
-                        print "funcionou?"
+                        pass
+                        #print "funcionou?"
             except Exception, e:
                 log.debug("WARNING:  %s", e)
                 
@@ -915,20 +919,20 @@ class openwimesh (EventMixin):
             #print "%s in %s is %s" % (match_fields['nw_src'],self.fake_sw,(match_fields['nw_src'] in self.fake_sw))
        
             if dst_ip in self.fake_sw and porta_destino and i +2 == len(path):
-                print "passei 1"
+                #print "passei 1"
                 actions = [['set_nw_src',self.fake_sw[dst_ip]], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             elif match_fields['nw_src'] in self.fake_sw and porta_destino and i + 1 == len(path):
-                print "passei 2"
+               # print "passei 2"
                 actions = [['set_nw_dst',dst_ip], ['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
             else:
-                print "passei 3"
+               # print "passei 3"
                 actions = [['set_dl_src', new_src_hw], ['set_dl_dst', new_dst_hw]]
 
             log.debug("Actions: %s" % actions)
             # set the output port
             out_port = self._get_out_port(sw, in_port, new_dst_hw)
-            print "a porta de entrada é %s" % in_port
-            print "a porta de saida é %s" % out_port
+           # print "a porta de entrada é %s" % in_port
+           # print "a porta de saida é %s" % out_port
             for i,p in enumerate(out_port):
                 actions.append(['output'+str(i), p])
 
@@ -1047,10 +1051,10 @@ class openwimesh (EventMixin):
         try:
             #print "%s in %s is %s" % (orig_src_ip,self.drop_fake, (orig_src_ip in self.drop_fake) ) 
             if orig_src_ip in self.drop_fake and dst_node_ip == self.drop_fake[orig_src_ip][0]:
-                
-                print "%s" % (time.time() - self.drop_fake[orig_src_ip][1])
+                pass
+                #print "%s" % (time.time() - self.drop_fake[orig_src_ip][1])
                 if time.time() - self.drop_fake[orig_src_ip][1] < 180:
-                    print "drop fake"
+                    #print "drop fake"
                     self._drop(event)
                     return
                 else:
@@ -1090,7 +1094,7 @@ class openwimesh (EventMixin):
                 if check_arp != "ok" and check_arp != "fake":
                     log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
                     self._drop(event)
-                    print "matei dst ofctl"
+                   # print "matei dst ofctl"
                     return
                 if check_arp == "fake":
                     dst_node_ip_path = ofctl_ip
@@ -1100,7 +1104,7 @@ class openwimesh (EventMixin):
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
-        print "destino e %s - %s" % (dst_node_ip,dst_node_hw)
+       # print "destino e %s - %s" % (dst_node_ip,dst_node_hw)
 
         
         if not dst_node_hw:
@@ -1123,12 +1127,12 @@ class openwimesh (EventMixin):
 
         # Received an ARP request from a node, then add an edge between these
         # nodes
-        print "mac de origem %s" % orig_src_hw
+       # print "mac de origem %s" % orig_src_hw
         if orig_src_hw not in self.net_graph.nodes():
             try:
                 self.net_graph.add_node(orig_src_hw, orig_src_ip)
                 openwimesh.addnode_time[orig_src_hw] = time.time()
-                print "add o %s ao netgraph" % orig_src_ip
+                #print "add o %s ao netgraph" % orig_src_ip
             except Exception as e:
                 print "Erro ao add o node: %s" % e
 
@@ -1137,7 +1141,7 @@ class openwimesh (EventMixin):
             # Debugging code ...
             #log.debug("Added new node: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
             if orig_src_ip in self.not_in_graph:
-                print "Added a node which previously was not found: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip)
+                #print "Added a node which previously was not found: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip)
                 log.debug("Added a node which previously was not found: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
             node = self.net_graph.get_by_attr('ip', orig_src_ip)
             node_ip = self.net_graph.get_node_ip(node)
@@ -1176,12 +1180,12 @@ class openwimesh (EventMixin):
         if arp_req_msg in self.replied_arp_req:
             delay = time.time() - self.replied_arp_req[arp_req_msg]['time']
             if delay < ARP_REQ_DELAY:
-                print "Ignoring ARP-Request replied"
+                #print "Ignoring ARP-Request replied"
                 log.debug("  -> Ignoring ARP-Request replied in %d seconds"
                         " ago by %s" % (delay,
                             self.replied_arp_req[arp_req_msg]['responser']))
                 self._drop(event)
-                print "matei 3"
+               # print "matei 3"
                 return
 
         # If this is not a connection with the controller, we just use the
@@ -1192,7 +1196,7 @@ class openwimesh (EventMixin):
 
         if dst_node_ip != ofctl_ip and orig_src_ip != ofctl_ip and not (orig_src_ip in self.fake_sw and dst_node_ip == self.fake_sw[orig_src_ip]):
      
-            print("Replying an ARP not related to the OFCTL: %s. depois return", arp_req_msg)
+           # print("Replying an ARP not related to the OFCTL: %s. depois return", arp_req_msg)
             log.debug("Replying an ARP not related to the OFCTL: %s", arp_req_msg)
             self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                 orig_src_hw)
@@ -1229,7 +1233,7 @@ class openwimesh (EventMixin):
         # After installing the paths, send the arp-reply related to this arp-request
         self._send_arp_reply(recv_node_hw, dst_node_ip, event.port, orig_src_ip,
                 orig_src_hw)
-        print "arp-reply enviado para %s" % orig_src_ip
+        #print "arp-reply enviado para %s" % orig_src_ip
         
         # Update the list of replied ARP-Requests
         self.replied_arp_req[arp_req_msg] = {'responser' : dpid, 
@@ -1310,14 +1314,14 @@ class openwimesh (EventMixin):
         self._install_path(event, recv_node_ip, nw_dst_path, match_fields, fwd_buffered_pkt = True)
 
     def _change_ofctl(self, sw_ip_addr):
-        print "changing"
+        #print "changing"
         
         ofctl_ip = self.net_graph.get_ip_ofctl()
         ofctl_hw = self.net_graph.get_hw_ofctl()
         log.debug("PARAMETROS: %s %s" % (sw_ip_addr, ofctl_ip,))
         sw_hw_addr = self.net_graph.get_by_attr('ip', sw_ip_addr)
         path = self.net_graph.path(ofctl_ip,sw_ip_addr)
-        print path
+        #print path
         i = path.index(sw_hw_addr)
         previous_sw = path[i-1]
         previous_ip = self.net_graph.get_node_ip(previous_sw)
@@ -1330,7 +1334,7 @@ class openwimesh (EventMixin):
         
         self.drop_fake[sw_ip_addr].append(now)
         del self.fake_sw[sw_ip_addr]
-        print "Fake = %s " % self.fake_sw
+        #print "Fake = %s " % self.fake_sw
         #try:
         #    self.net_graph.remove_node(sw_hw_addr)
         #except Exception as e:
@@ -1360,7 +1364,7 @@ class openwimesh (EventMixin):
         (status, msg) = self._install_flow_entry(previous_sw, match_fields, actions, buffer_id)
         #os.system("ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=%s,nw_dst=%s,tp_src=6633,actions=mod_dl_src:%s,mod_dl_dst:%s,output:1" % (ofctl_ip,sw_ip_addr,previous_sw,sw_hw_addr))
 
-        print "fim do fake"
+        #print "fim do fake"
     
     def _async_add_edge(self,node1,node2):
         now = time.time()
@@ -1429,7 +1433,7 @@ class openwimesh (EventMixin):
             # it should be removed from connecting list
             del self.connecting_nodes[sw_hw_addr]
 
-        print "add node %s" % sw_hw_addr
+        #print "add node %s" % sw_hw_addr
 
         self.net_graph.add_node(sw_hw_addr, **attrs)
         try:
@@ -1458,7 +1462,7 @@ class openwimesh (EventMixin):
                 th1.start()
 
             
-            print("Gnet.nodes:",self.gnet_graph.nodes())
+            #print("Gnet.nodes:",self.gnet_graph.nodes())
             #print(self.gnet_graph.edges())
 
                 
@@ -1576,8 +1580,10 @@ def _handle_EchoReply (event):
         
         openwimesh.netgraph.set_node_latency(sw_mac, latency * 1000)
         #print "!@# Rcvd Echo reply from %s: Latency= %f" %(sw_mac, openwimesh.netgraph.get_node_latency(sw_mac))
-        openwimesh.f_lat.write("%s,%s,%f\n"%(sw_mac, now_date, latency * 1000))
-        openwimesh.f_lat.flush()
+        #print "NOW: %s MONIT: %s" % (now, openwimesh.time_delay)
+        if now > openwimesh.time_delay:
+            openwimesh.f_lat.write("%s,%s,%f\n"%(sw_mac, now_date, latency * 1000))
+            openwimesh.f_lat.flush()
         #print "Node latency: %f"%(openwimesh.netgraph.get_node_latency(sw_mac))
     else:
         print "Drop echo reply - MAC addr matches no node in graph"
@@ -1682,6 +1688,7 @@ def _poller_check_global_task(ofpox, interval, timeout):
     if now > openwimesh.tstamp_backoff:
         try:
             openwimesh.gnetgraph.send_tstamp(cid,now)
+            openwimesh.latency_global()
             openwimesh.gnetgraph.add_ofctl(cid,ofctl_hw,ofctl_ip)
             openwimesh.gnetgraph.update_nodes(cid, nodes_with_ip)
             log.debug("Checking if there are tasks from global_app")
@@ -1692,6 +1699,7 @@ def _poller_check_global_task(ofpox, interval, timeout):
                 for new_ofctl_hw in new_ofctls_list:
                     try:
                         openwimesh.gnetgraph.add_becoming_ofctl(new_ofctl_hw)
+                        log.debug("LOG ADD BECOMING OFCTL - %s", new_ofctl_hw)
                     except Exception as e:
                         log.debug("Error add_becoming_ofctl (%s)",e)
                         continue

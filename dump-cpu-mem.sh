@@ -2,7 +2,7 @@
 #script dump cpu&mem from nodes
 
 #TYPE=`ps -C python -o %cpu,%mem,cmd --no-header | wc -l`
-sleep 15
+sleep 30
 IP=$(LANG=C /sbin/ifconfig ofsw0 2>/dev/null | egrep -o "inet addr:[^ ]*" |cut -d: -f2)
 LOCAL="/home/openwimesh/capturas/dump-cpu-mem/$IP"
 

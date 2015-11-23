@@ -36,6 +36,7 @@ cp -r /home/openwimesh/capturas/dump-cpu-mem /home/openwimesh/capturas/$EXEC
 cp -r /home/openwimesh/capturas/latencia /home/openwimesh/capturas/$EXEC
 cp -r /home/openwimesh/capturas/tempo-converg /home/openwimesh/capturas/$EXEC
 cp -r /home/openwimesh/capturas/dump-flows /home/openwimesh/capturas/$EXEC
+cp -r /home/openwimesh/capturas/latencia-global /home/openwimesh/capturas/$EXEC
 
 ATUAL=`cat /home/openwimesh/capturas/monit-atual.conf | awk 'NR==1'`
 

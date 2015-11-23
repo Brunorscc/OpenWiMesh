@@ -3,7 +3,7 @@
 
 MONIT=$1
 
-LISTA_DIR=(dump-cpu-mem delay-slowpath latencia tempo-converg dump-flows dplane-traffic)
+LISTA_DIR=(dump-cpu-mem delay-slowpath latencia latencia-global tempo-converg dump-flows dplane-traffic)
 
 mkdir /home/openwimesh/capturas/$MONIT
 

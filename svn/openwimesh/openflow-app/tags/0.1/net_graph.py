@@ -75,7 +75,7 @@ class NetGraph(DiGraph, Controller, object):
 
     def clear_outdated_od_neigh(self):
         dead= []
-        print self.other_domain_neigh
+        #print self.other_domain_neigh
         #print "####### FIM #######"
         for sw in self.other_domain_neigh:
             for i,neigh in enumerate(self.other_domain_neigh[sw]):
@@ -268,7 +268,7 @@ class NetGraph(DiGraph, Controller, object):
     def path(self, src_ip, dst_ip):
         src_mac = self.get_by_attr('ip', src_ip)
         dst_mac = self.get_by_attr('ip', dst_ip)
-        print "src_mac = %s dst_mac = %s" % (src_mac, dst_mac)
+        #print "src_mac = %s dst_mac = %s" % (src_mac, dst_mac)
         ofctl_ip = self.get_ip_ofctl()
         if src_mac is None:
             if ofctl_ip == src_ip:
@@ -394,7 +394,7 @@ class NetGraph(DiGraph, Controller, object):
                 del_nodes.append(n)
         for n in del_nodes:
             try:
-                print "ciao"
+                #print "ciao"
                 self.remove_edge(node, n)
             except Exception as e:
                 print "erro remove edge: %s" % e

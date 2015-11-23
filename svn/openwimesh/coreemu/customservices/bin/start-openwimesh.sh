@@ -94,6 +94,12 @@ done
 
 iperf3 -s -p 1999 &
 
+#bash /home/openwimesh/iperf-client.sh &
+
+bash /home/openwimesh/dump-cpu-mem.sh &
+
+bash /home/openwimesh/dump-flows.sh &
+
 log " PRI_MYIP = $PRI_MYIP"
 if [ "$PRI_MYIP" = "192.168.199.1" ]; then
   PRI_MYIP=$OWM_OFCTL
@@ -147,7 +153,6 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    #    sleep 2
    # fi
 
-  
    URI=$(cat /tmp/uri.txt)
    log "server uri is $URI"
    TIME=`date +%Y-%m-%d-%H:%M`

@@ -18,14 +18,15 @@ def get_stats(MAC, latencies):
 f_dict = []
 arg = sys.argv
 print ("ARG: %s" % arg[1])
-for (dirpath, dirnames, filenames) in walk("/home/openwimesh/capturas/%s/latencia/" % arg[1]):
+#for (dirpath, dirnames, filenames) in walk("/home/openwimesh/capturas/%s/latencia/" % arg[1]):
+for (dirpath, dirnames, filenames) in walk("%s" % arg[1]):
     f_dict.extend(filenames)
     break
 
 print "FILES: %s" % (f_dict)
 
 for x in f_dict:
-  with open('/home/openwimesh/capturas/%s/latencia/%s' % (arg[1],x)) as f:
+  with open('%s/%s' % (arg[1],x)) as f:
     print "FILE: %s" % x
     f.readline()
     # Create the list of latencies

@@ -20,7 +20,7 @@ import fileinput
  # print "%s, MIN: %f, MAX: %f, MEDIA: %f, DESVIO: %f" % (MAC, min(diff_list), max(diff_list), mean, stdev)
 
 #def get_stats(tipo, lista, intervalo=5, agreg=30):
-def get_stats(tipo, lista, lista_g, nome, tira_media=0): 
+def get_stats(tipo, lista, lista_g, nome, tira_media=0, printar=0): 
 	stdev = 0
   	diff_list=[]
   	aux = 0
@@ -52,7 +52,7 @@ def get_stats(tipo, lista, lista_g, nome, tira_media=0):
 				aux2 = float(lista[atual+1]) - aux
 				diff_list.append(aux2)
 		else:
-			for atual in range(0,n-1):
+			for atual in range(0,n):
 				diff_list.append(float(lista[atual]))	 
 				#print "AUX - %s  AUX2 - %s" % (aux, aux2)
 		#print ("%s LIST - %s" % (tipo, diff_list))
@@ -72,13 +72,15 @@ def get_stats(tipo, lista, lista_g, nome, tira_media=0):
 			lista_g["desvio"].append(stdev)
 		else:
 			lista_g["desvio"] = [stdev]
-		print ""
-		print "DIFF_LIST - %s" % diff_list
-		print "%s-%s, MIN: %.4f/s, MAX: %.4f/s, MEDIA: %.4f/s, DESVIO: %.4f" % (nome, tipo, min(diff_list), max(diff_list),mean, stdev)
+		#print ""
+		#print "DIFF_LIST - %s" % diff_list
+		if printar == 1:
+			print "%s-%s, MIN: %.4f/s, MAX: %.4f/s, MEDIA: %.4f/s, DESVIO: %.4f" % (nome, tipo, min(diff_list), max(diff_list),mean, stdev)
 	else:
-		print "Tamanho da lista de valores de '%s' de %s e' menor que 1" % (tipo,nome)
+		pass
+		#print "Tamanho da lista de valores de '%s' de %s e' menor que 1" % (tipo,nome)
 
-def get_stats_agg(tipo, lista): 
+def get_stats_agg(tipo, lista, start, finish): 
 	n = int(len(lista))
 	if n > 0:
 		mean = sum(lista)/n
@@ -86,9 +88,10 @@ def get_stats_agg(tipo, lista):
 		for value in lista:
 			stdev += (value - mean)**2
 		stdev = math.sqrt(stdev/(n))
-		print "AGREGADO da Amostra - %s, MIN: %.4f/s, MAX: %.4f/s, MEDIA: %.4f/s, DESVIO: %.4f" % (tipo, min(lista)/30, max(lista)/30, mean/30, stdev/30)
+		print "AGREGADO da Amostra %s-%s - %s, MIN: %.4f/s, MAX: %.4f/s, MEDIA: %.4f/s, DESVIO: %.4f" % (start, finish,tipo, min(lista)/30, max(lista)/30, mean/30, stdev/30)
 	else:
-		print "Tamanho da lista de valores de '%s' e' menor que 1" % tipo
+		pass
+		#print "Tamanho da lista de valores de '%s' e' menor que 1" % tipo
 
 def main():
 	f_dict = []
@@ -107,18 +110,19 @@ def main():
 	path2 = arg[4]
 	x = None
 
-	print "start %d - finish %d" % (start, finish)
+	#print "start %d - finish %d" % (start, finish)
 
 	pkt_list_agg={'media':[],'desvio':[]}
 	byte_list_agg={'media':[],'desvio':[]}
 
 	for i in range(start,finish+1):
-		print "I = %d" % i
+		f_dict = []
+		#print "I = %d" % i
 		for (dirpath, dirnames, filenames) in walk("%s/%s/%s" % (path,i,path2)):
 		    f_dict.extend(filenames)
 		    break
 
-		print "FILES: %s" % (f_dict)
+		#print "FILES: %s" % (f_dict)
 
 		pkt_list_g={'media':[],'desvio':[]}
 		byte_list_g={'media':[],'desvio':[]}
@@ -138,7 +142,9 @@ def main():
 		    	pktcount, bytecount = line.split(' ')
 		    	pkt_list.append(pktcount)
 		    	byte_list.append(bytecount)
-		    
+		    	#print "LINE - %s" % line
+		  #  pkt_list.append(pktcount)
+		#    byte_list.append(bytecount)
 		    get_stats("pktcount", pkt_list,pkt_list_g, x, 0)
 		    get_stats("bytecount", byte_list,byte_list_g, x, 0)
 		#    print ""
@@ -156,15 +162,14 @@ def main():
 		#print "G MEDIA list - %s" % (pkt_list_g['media'])
 		#print "G BYTE list - %s" % (byte_list_g['media'])
 		#print ""
-		get_stats("pktcount", pkt_list_g['media'], pkt_list_agg, i, 1)
-		get_stats("bytecount", byte_list_g['media'], byte_list_agg, i, 1)
-		print ""
+		get_stats("pktcount", pkt_list_g['media'], pkt_list_agg, i, 1,1)
+		get_stats("bytecount", byte_list_g['media'], byte_list_agg, i, 1,1)
+		#print ""
+	get_stats_agg("pktcount", pkt_list_agg['media'], start, finish)
+	get_stats_agg("bytecount", byte_list_agg['media'], start, finish)
 
-	get_stats_agg("pktcount", pkt_list_agg['media'])
-	get_stats_agg("bytecount", byte_list_agg['media'])
-
-	print "PKT - LIST %s" % pkt_list_agg
-	print "BYTE - LIST %s" % byte_list_agg
+	#print "PKT - LIST %s" % pkt_list_agg
+	#print "BYTE - LIST %s" % byte_list_agg
 
 if __name__=="__main__":
 	main()
