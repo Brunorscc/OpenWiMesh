@@ -14,9 +14,9 @@ class global_ofcl_app(object):
 	"""docstring for global_ofcl_app"""
 	# timeout for confirm an edge
 	CONFIRM_OFCTL_TOUT = 10
-
+	list_of_nodes=["00:00:00:aa:00:02","00:00:00:aa:00:04"]
 	def __init__(self):
-
+		#self.list_of_nodes=["00:00:00:aa:00:02"]
 		logging.info('Starting global_ofcl_app')
 		self.gnet_graph = GNetGraph()
 		self.nome = None
@@ -89,10 +89,10 @@ class global_ofcl_app(object):
 			except Exception as e:
 				logging.debug("Problema remover becoming_ofctl (%s)",e)
 
-			try:
-				self.new_ofctls()
-			except Exception as e:
-				logging.debug("Problema add new ofctls (%s)",e)
+			#try:
+			#	self.new_ofctls()
+			#except Exception as e:
+			#	logging.debug("Problema add new ofctls (%s)",e)
 
 			try:
 				nodes_without_cid = self.gnet_graph.check_by_attr_cid()
@@ -102,9 +102,28 @@ class global_ofcl_app(object):
 			except Exception as e:
 				logging.debug("ERRO Removendo node sem CID (%s)", e)
 
+			#logging.debug("STATIC NUMBER OF NODES - %s", self.gnet_graph.number_of_nodes() )
+			#try:
+			#	if self.gnet_graph.number_of_nodes() == 10:
+					#self.create_nodes_list()
+					#self.list_of_nodes.pop()
+			#		logging.debug("SAIU STATIC CREATE NODES LIST")
+			#except Exception as e:
+			#		logging.debug("ERROR STATIC CREATE NODES LIST - %s", e)
 			logging.debug("sleeping")
 			time.sleep(5)
 
+	def create_nodes_list(self):
+		logging.debug("ENTROU STATIC CREATE NODES LIST")
+		if self.list_of_nodes:
+			logging.debug("ENTROU STATIC IF NODES LIST")
+			if not self.becoming_ofctl:
+				logging.debug("ENTROU STATIC NOT SELF BECOMING LIST")
+				new_node=self.list_of_nodes.pop()
+				cid = self.gnet_graph.get_node_cid(new_node)
+				logging.debug("ENTROU STATIC SELF LIST - %s  NEW NODE - %s", self.list_of_nodes, new_node)
+				self.creating_new_ofctl_task_list[cid]= [new_node]
+				logging.debug("Creating STATIC ofctl %s", new_node)
 
 	def add_becoming_ofctl(self,sw_mac):
 		logging.debug('%s will be an ofctl',sw_mac)
@@ -146,17 +165,12 @@ class global_ofcl_app(object):
 			for n in nl:
 				local_nodes.append(n[0])
 
+
 			remove_list = list(set(nodes)-set(local_nodes))
 			add_list= list(set(local_nodes)-set(nodes))
-			
-			#remove_list = [a for a in nodes if a not in nl]
-			#add_list = [a for a in <lista-local> if a not in <lista-global>]
 
 			for node in remove_list:
-					logging.debug("remove node %s", node)
-					
-					#TROCAR LINHA ABAIXO POR: self.gnet_graph.remove_node(node[0])
-					
+					logging.debug("remove node %s", node)					
 					self.gnet_graph.remove_node(node)
 			logging.debug("NL - %s", nl)
 			logging.debug("NODES - %s", nodes)
@@ -172,9 +186,13 @@ class global_ofcl_app(object):
 							IP=n[1]
 					if IP:
 						self.add_node(node, IP, cid)
-					#TROCAR LINHA ABAIXO POR: self.gnet_graph.remove_node(node[0])
 			except Exception as e:
 				logging.debug("Erro add_node no grafo global pq detectou no grafo - %s", e)
+
+			if (len(self.gnet_graph.ofctl_list) == 2):
+				logging.debug("RECONHECEU 2 CTRLS %s", time.time())
+				#if len(self.gnet_graph.nodes(data=True)) == 10:
+					#logging.debug("GLOBAL CONVERGIDO c/ 2 ctlrs %s", time.time())
 				
 
 	def new_ofctls(self):
@@ -213,6 +231,7 @@ class global_ofcl_app(object):
 		if not self.new_ofctls_lock:
 			if cid in self.creating_new_ofctl_task_list:
 				new_ofctls_list = self.creating_new_ofctl_task_list[cid]
+				self.creating_new_ofctl_task_list[cid]=[]
 				logging.debug("ofctl %s has new_ofctls %s",cid,new_ofctls_list)
 				return new_ofctls_list
 		
