@@ -14,7 +14,7 @@ class global_ofcl_app(object):
 	"""docstring for global_ofcl_app"""
 	# timeout for confirm an edge
 	CONFIRM_OFCTL_TOUT = 10
-	list_of_nodes=["00:00:00:aa:00:02","00:00:00:aa:00:04"]
+	#list_of_nodes=["00:00:00:aa:00:02","00:00:00:aa:00:04"]
 	def __init__(self):
 		#self.list_of_nodes=["00:00:00:aa:00:02"]
 		logging.info('Starting global_ofcl_app')
@@ -29,6 +29,7 @@ class global_ofcl_app(object):
 		self.connecting_nodes = {}
 		self.creating_new_ofctl_task_list = {}
 		self.new_ofctls_lock = False
+		self.offline_ofctl_list = {}
 
 	@Pyro4.oneway
 	def set_gcid(self,gcid):
@@ -50,15 +51,20 @@ class global_ofcl_app(object):
 						if now - self.gnet_graph.ofctl_list[cid]['last_update'] > self.CONFIRM_OFCTL_TOUT:
 							dead.append(cid)
 							#ofctl_hw = self.gnet_graph.ofctl_list[cid]['hwaddr']
-					
+			
 					for cid in dead:
+						
+						self.offline_ofctl(cid)
+						
 						nodes= self.gnet_graph.get_node_list_by_attr('cid', cid)
 						for node in nodes:
 							logging.debug('Removing node %s',node)
 							self.gnet_graph.remove_node(node)
-						logging.debug('Removing ofctl %s', cid)
+						logging.debug('Removing ofctl %s - %s', cid, time.time())
 						ofctl_ip = self.gnet_graph.ofctl_list[cid]['ipaddr']
-						self.ip_ofct_list.append(ofctl_ip.split('.')[3])
+						
+						# comentada a remocao automatica de controlador
+						#self.ip_ofct_list.append(ofctl_ip.split('.')[3])
 						self.gnet_graph.remove_ofctl(cid)
 
 					logging.debug("Nodes %s",self.gnet_graph.nodes(data=True))
@@ -112,6 +118,20 @@ class global_ofcl_app(object):
 			#		logging.debug("ERROR STATIC CREATE NODES LIST - %s", e)
 			logging.debug("sleeping")
 			time.sleep(5)
+
+	def offline_ofctl(self,cid):
+		try:
+			ofctl_hw = self.gnet_graph.ofctl_list[cid]['hwaddr']
+			ofctl_ip = self.gnet_graph.ofctl_list[cid]['ipaddr']
+			node_ip = self.gnet_graph.get_node_ip(ofctl_hw)
+
+			path = self.gnet_graph.path(self.ip_addr,node_ip)
+			if len(path) > 0:
+				crossd = path[-2]
+				self.offline_ofctl_list[cid]={'hwaddr':ofctl_hw,'ipaddr':ofctl_ip,'crossd':crossd,'last_update':time.time()} 
+			logging.debug("offline ofctl list %s", self.offline_ofctl_list)
+		except Exception as e:
+			logging.debug("Erro offline ofclt list - %s", e)
 
 	def create_nodes_list(self):
 		logging.debug("ENTROU STATIC CREATE NODES LIST")
@@ -189,9 +209,9 @@ class global_ofcl_app(object):
 			except Exception as e:
 				logging.debug("Erro add_node no grafo global pq detectou no grafo - %s", e)
 
-			if (len(self.gnet_graph.ofctl_list) == 2):
-				logging.debug("RECONHECEU 2 CTRLS %s", time.time())
-				#if len(self.gnet_graph.nodes(data=True)) == 10:
+			#if (len(self.gnet_graph.ofctl_list) == 2):
+			#	logging.debug("RECONHECEU 2 CTRLS %s", time.time())
+			#	#if len(self.gnet_graph.nodes(data=True)) == 10:
 					#logging.debug("GLOBAL CONVERGIDO c/ 2 ctlrs %s", time.time())
 				
 
@@ -228,6 +248,7 @@ class global_ofcl_app(object):
 		self.new_ofctls_lock = False
 
 	def get_new_ofctls_list(self,cid):
+		logging.debug("ofctl %s %s consulted global", cid, self.gnet_graph.ofctl_list[cid]['ipaddr'])
 		if not self.new_ofctls_lock:
 			if cid in self.creating_new_ofctl_task_list:
 				new_ofctls_list = self.creating_new_ofctl_task_list[cid]

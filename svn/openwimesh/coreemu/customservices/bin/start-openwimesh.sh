@@ -32,10 +32,14 @@ fi
 PRI_IFACE=${OWM_IFACES%% *}
 PRI_MYIP=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $2}' | cut -d: -f2)
 PRI_MASK=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $4}' | cut -d: -f2)
-# if [ "$PRI_MYIP" = "192.168.199.252" ]; then
-#   OWM_OFCTL="192.168.199.252"
-#   GC_DEST_IP=$OWM_OFCTL
-# fi
+#if [ "$PRI_MYIP" = "192.168.199.4" ]; then
+#  OWM_OFCTL="192.168.199.252"
+#  GC_DEST_IP=$OWM_OFCTL
+#fi
+#if [ "$PRI_MYIP" = "192.168.199.7" ]; then
+#  OWM_OFCTL="192.168.199.252"
+#  GC_DEST_IP=$OWM_OFCTL
+#fi
 
 # if [ "$PRI_MYIP" = "192.168.199.5" ]; then
 #   OWM_OFCTL="192.168.199.252"
@@ -107,6 +111,18 @@ if [ "$PRI_MYIP" = "192.168.199.1" ]; then
   ip addr add $PRI_MYIP/24 dev ofsw0
 fi
 
+#if [ "$PRI_MYIP" = "192.168.199.4" ]; then
+#  PRI_MYIP=$OWM_OFCTL
+#  log "ip = $PRI_MYIP"
+#  ip addr add $PRI_MYIP/24 dev ofsw0
+#fi
+
+#if [ "$PRI_MYIP" = "192.168.199.7" ]; then
+#  PRI_MYIP=$OWM_OFCTL
+#  log "ip = $PRI_MYIP"
+#  ip addr add $PRI_MYIP/24 dev ofsw0
+#fi
+
 if [ "$OWM_OFCTL" != "$PRI_MYIP" ]; then
 	
 	ovsif=$(ovs-ofctl show ofsw0 | egrep -o "[0-9]+\($PRI_IFACE\): addr" | cut -d'(' -f1 | tr -d ' ')
@@ -137,6 +153,8 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    CID="0"
    PRIORITY="0"
    GLOBAL_OFCTL_IP="192.168.199.1"
+   GCID="0"
+   GlOBALHWADDR="00:00:00:aa:00:00"
    if [ "$IPADDR" = "$GLOBAL_OFCTL_IP" ]; then
       GCID="0"
       PRIORITY="0"
@@ -145,13 +163,23 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
       sleep 2
    fi
 
-   # if [ "$OWM_OFCTL" != "$GLOBAL_OFCTL_IP" ]; then
-   #    CID="1"
-   #    PRIORITY="10"
-   #    ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:00:00:00:aa:00:02,output:1
-   #    ovs-ofctl add-flow ofsw0 idle_timeout=20,tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
-   #    sleep 2
-   # fi
+#   if [ "$IPADDR" == "192.168.199.4" ]; then
+ #     CID="1"
+ #     PRIORITY="10"
+ #     sleep 10
+ #     arp -s $GLOBAL_OFCTL_IP $HWADDR
+ #     ovs-ofctl add-flow ofsw0 tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:00:00:00:aa:00:02,output:1
+ #     ovs-ofctl add-flow ofsw0 tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
+ #  fi
+
+#   if [ "$IPADDR" == "192.168.199.7" ]; then
+#      CID="2"
+#      PRIORITY="10"
+##      sleep 10
+ #     arp -s $GLOBAL_OFCTL_IP $HWADDR
+ #     ovs-ofctl add-flow ofsw0 tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:00:00:00:aa:00:02,output:1
+ #     ovs-ofctl add-flow ofsw0 tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
+ #  fi
 
    URI=$(cat /tmp/uri.txt)
    log "server uri is $URI"
@@ -169,5 +197,5 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    if [ -z "$DISPLAY" ]; then
       export DISPLAY=:0
    fi
-   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$OWM_OFCTL --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$GCID --ofglobalhw=$HWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 --monit=$TIME py &
+   xterm -T "POX (n1)" -e python $POXDIR/pox.py --verbose log --file=/var/log/openwimesh.log,w --no-default --format="%(asctime)s - %(levelname)s - %(message)s" openwimesh --ofip=$OWM_OFCTL --ofmac=$HWADDR --cid=$CID --priority=$PRIORITY --gcid=$GCID --ofglobalhw=$GlOBALHWADDR --ofglobalip=$GLOBAL_OFCTL_IP --uri=$URI --algorithm=0 --monit=$TIME py &
 fi
