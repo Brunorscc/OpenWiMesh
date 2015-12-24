@@ -32,10 +32,10 @@ fi
 PRI_IFACE=${OWM_IFACES%% *}
 PRI_MYIP=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $2}' | cut -d: -f2)
 PRI_MASK=$(LANG=C ifconfig $PRI_IFACE | grep 'inet ' | awk '{print $4}' | cut -d: -f2)
-#if [ "$PRI_MYIP" = "192.168.199.4" ]; then
-#  OWM_OFCTL="192.168.199.252"
-#  GC_DEST_IP=$OWM_OFCTL
-#fi
+if [ "$PRI_MYIP" = "192.168.199.4" ]; then
+  OWM_OFCTL="192.168.199.252"
+  GC_DEST_IP=$OWM_OFCTL
+fi
 #if [ "$PRI_MYIP" = "192.168.199.7" ]; then
 #  OWM_OFCTL="192.168.199.252"
 #  GC_DEST_IP=$OWM_OFCTL
@@ -96,9 +96,9 @@ for i in $OWM_IFACES; do
     ovs-ofctl mod-port ofsw0 $i no-packet-in
 done
 
-iperf3 -s -p 1999 &
+#iperf3 -s -p 1999 &
 
-#bash /home/openwimesh/iperf-client.sh &
+bash /home/openwimesh/iperf-client.sh &
 
 bash /home/openwimesh/dump-cpu-mem.sh &
 
@@ -111,11 +111,11 @@ if [ "$PRI_MYIP" = "192.168.199.1" ]; then
   ip addr add $PRI_MYIP/24 dev ofsw0
 fi
 
-#if [ "$PRI_MYIP" = "192.168.199.4" ]; then
-#  PRI_MYIP=$OWM_OFCTL
-#  log "ip = $PRI_MYIP"
-#  ip addr add $PRI_MYIP/24 dev ofsw0
-#fi
+if [ "$PRI_MYIP" = "192.168.199.4" ]; then
+  PRI_MYIP=$OWM_OFCTL
+  log "ip = $PRI_MYIP"
+  ip addr add $PRI_MYIP/24 dev ofsw0
+fi
 
 #if [ "$PRI_MYIP" = "192.168.199.7" ]; then
 #  PRI_MYIP=$OWM_OFCTL
@@ -143,6 +143,7 @@ for i in $OWM_IFACES; do
       GC_DEST_IP="192.168.199.253"
       arp -s $GC_DEST_IP 00:00:00:AA:FF:FE
    fi
+
    log "Starting GraphClient on iface $i (sending to $GC_DEST_IP:$GC_DEST_PORT)"
    /home/openwimesh/openwimesh/graphclient/GraphClient -w $i -o $GC_DEST_IP:$GC_DEST_PORT -b ofsw0 -E -arp >/dev/null 2>&1 &
 done
@@ -161,16 +162,17 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
       log "Starting openflow controller global app server"
       python /home/openwimesh/openwimesh/openflow-app/global_ofctl_app.py 2>&1 &
       sleep 2
+
    fi
 
-#   if [ "$IPADDR" == "192.168.199.4" ]; then
- #     CID="1"
- #     PRIORITY="10"
- #     sleep 10
- #     arp -s $GLOBAL_OFCTL_IP $HWADDR
- #     ovs-ofctl add-flow ofsw0 tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:00:00:00:aa:00:02,output:1
- #     ovs-ofctl add-flow ofsw0 tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
- #  fi
+   if [ "$IPADDR" == "192.168.199.4" ]; then
+      CID="1"
+      PRIORITY="10"
+      #sleep 10
+      #arp -s $GLOBAL_OFCTL_IP $HWADDR
+      #ovs-ofctl add-flow ofsw0 tcp,nw_src=$IPADDR,nw_dst=$GLOBAL_OFCTL_IP,tp_dst=47922,actions=mod_nw_dst:$GLOBAL_OFCTL_IP,mod_dl_src:$HWADDR,mod_dl_dst:00:00:00:aa:00:2c,output:1
+      #ovs-ofctl add-flow ofsw0 tcp,dl_dst=$HWADDR,nw_src=$GLOBAL_OFCTL_IP,nw_dst=$IPADDR,tp_src=47922,actions=mod_nw_dst:$IPADDR,mod_dl_src:$HWADDR,mod_dl_dst:$HWADDR,LOCAL
+   fi
 
 #   if [ "$IPADDR" == "192.168.199.7" ]; then
 #      CID="2"
@@ -185,13 +187,13 @@ if [ "$OWM_OFCTL" = "$PRI_MYIP" ]; then
    log "server uri is $URI"
    TIME=`date +%Y-%m-%d-%H:%M`
    log "PWD= `pwd`"
+   
    #creating directories for captures
    /home/openwimesh/create-dirs-capture.sh $TIME &
 
    echo -e "$TIME\n`pwd`" > /home/openwimesh/capturas/monit-atual.conf
    #script to periodic dump switches's ovs flow table
    #/home/openwimesh/dump-flows.sh $TIME $IPADDR &
-   
 
    log "Starting Openflow Controller with OPENWIMESH app (ipaddr=$IPADDR, hwaddr=$HWADDR, cid=$CID, priority=$PRIORITY)"
    if [ -z "$DISPLAY" ]; then

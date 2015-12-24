@@ -64,7 +64,7 @@ from threading import Thread
 import datetime
 
 log = core.getLogger()
-Pyro4.config.COMMTIMEOUT = 2.0
+Pyro4.config.COMMTIMEOUT = 30.0
 # time between arp-resquests that we don't reply again
 ARP_REQ_DELAY=10
 
@@ -197,6 +197,7 @@ def handle_PacketIn_Function (self, event):
                                 #openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
                                 #log.debug(" Update EDGES GLOBAL - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
                                 log.debug("LOCK_GLOBAL_CONN=True ; Error update GLOBAL EDGES (%s)" % e)
+                                print ("Trava global conn - ativada")
                                 self.lock_global_conn=True
                         
                         log.debug("Update graph from graphClient() in %s: %s" %
@@ -284,6 +285,7 @@ class openwimesh (EventMixin):
     count_pktin = 0
     lock_count_pktin = False
     lock_global_conn = False
+    lista_nodes_zona = {'0': ['192.168.199.14','192.168.199.39','192.168.199.10','192.168.199.40','192.168.199.7','192.168.199.9','192.168.199.22','192.168.199.2','192.168.199.21','192.168.199.38','192.168.199.25','192.168.199.26','192.168.199.17','192.168.199.13','192.168.199.11','192.168.199.19','192.168.199.23','192.168.199.31','192.168.199.12','192.168.199.8','192.168.199.1','192.168.199.3','192.168.199.24','192.168.199.42','192.168.199.43','192.168.199.44','192.168.199.32','192.168.199.41','192.168.199.33','192.168.199.30','192.168.199.35'], '1': ['192.168.199.47','192.168.199.5', '192.168.199.29','192.168.199.45','192.168.199.46','192.168.199.6','192.168.199.49','192.168.199.4','192.168.199.27','192.168.199.28','192.168.199.36', '192.168.199.48','192.168.199.50','192.168.199.16','192.168.199.37','192.168.199.34','192.168.199.15','192.168.199.18','192.168.199.20']}    
 
     #f_lat = open("/home/openwimesh/latencia/%s-latencia-ctrl-%s.txt" % (monit, ofip), "w")
     #f_lat.write("Switch,Timestamp,RTT\n")
@@ -294,7 +296,18 @@ class openwimesh (EventMixin):
     @classmethod
     def unlock_global_conn(cls):
         openwimesh.lock_global_conn=False
+        ofctl_ip = openwimesh.netgraph.get_ip_ofctl()
+        cid = openwimesh.netgraph.get_cid_ofctl()
+        ofctl_hw_addr = openwimesh.netgraph.get_hw_ofctl()
         print("Global conn unlocked")
+        
+        if openwimesh.lock_global_conn == False:
+            try:
+                openwimesh.gnetgraph.add_ofctl(cid, ofctl_hw_addr, ofctl_ip)
+            except Exception as e:
+                print ("Erro add ofctl em grafo global durante unlock")
+                log.debug("Erro add ofctl em grafo global durante unlock")
+
 
     @classmethod
     def insert_route(cls,dst_ip,mycross_mac,dstcross_mac):
@@ -576,12 +589,23 @@ class openwimesh (EventMixin):
         #th = Thread(target=self._async_call, args=(self.async_gnetgraph.get_fortune("BBMP"),))
         #th.start()
 
+        if ofip == "192.168.199.252":
+            print "entrou ofip"
+            openwimesh.lock_global_conn=True
+            openwimesh.netgraph.add_route_ins('192.168.199.1', '00:00:00:aa:00:2e', '00:00:00:aa:00:02')
+            #self.net_graph.add_route_ins('192.168.199.1', '00:00:00:aa:00:03', '00:00:00:aa:00:02')
+
+        if ofip == "192.168.199.254":
+            print "entrou ofip"
+            openwimesh.netgraph.add_route_ins('192.168.199.4', '00:00:00:aa:00:02', '00:00:00:aa:00:2e')
+            #self.net_graph.add_route_ins('192.168.199.1', '00:00:00:aa:00:03', '00:00:00:aa:00:02')         
+
         try:
             print gcid
             if gcid != cid:
                 print ":("
                 time.sleep(0.1)
-                self.net_graph.add_route_ins_global(ofmac, crossdomain)
+                #self.net_graph.add_route_ins_global(ofmac, crossdomain)
                 #self.net_graph.add_route_ins(ofglobalip, ofmac, crossdomain)#destino global_app
                 #if ofip == "192.168.199.4":
                 #self.net_graph.add_route_ins('192.168.199.1', '00:00:00:aa:00:03', '00:00:00:aa:00:02')
@@ -1013,7 +1037,6 @@ class openwimesh (EventMixin):
         print "oi"
 
     def _get_crossdomain(self,recv_node_ip,dst_node_ip):
-        log.debug("Asking global_app who is %s ",dst_node_ip)
         dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
 
         now=time.time()
@@ -1029,6 +1052,7 @@ class openwimesh (EventMixin):
             #if now > openwimesh.tstamp_backoff:
             if self.lock_global_conn == False:
                 try:
+                    log.debug("Asking global_app who is %s ",dst_node_ip)
                     crossd = self.gnet_graph.get_crossdomain(recv_node_ip,dst_node_ip,self.net_graph.get_cid_ofctl())
                     #openwimesh.tstamp_last= time.time()
                     #openwimesh.backoff = 0
@@ -1038,6 +1062,7 @@ class openwimesh (EventMixin):
                    # log.debug("BACKOFF CROSSDOMAIN - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
                     log.debug("LOCK GLOBAL CONN= True ; ERRO CROSSDOMAIN COMMUNICACAO COM GLOBAL - %s", e)
                     self.lock_global_conn=True
+                    print ("Trava global conn - ativada")
                     return None
             else:
                 crossd = None
@@ -1070,6 +1095,7 @@ class openwimesh (EventMixin):
                 #log.debug("BACKOFF TEMP ADD EDGE GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
                 log.debug("LOCK GLOBAL CONN=True ; ERRO ADD EDGETMP COMMUNICACAO COM GLOBAL - %s", e)
                 self.lock_global_conn=True
+                print ("Trava global conn - ativada")
                 return None
         else:
             crossd = None       
@@ -1124,41 +1150,62 @@ class openwimesh (EventMixin):
 
         ofctl_ip = self.net_graph.get_ip_ofctl()
         dst_node_ip_path = dst_node_ip
-     
+        ofctl_cid = self.net_graph.get_cid_ofctl()
+
+
         now=time.time() #BACKOFF CONSULTA GLOBAL CASO ERRO CONEXAO
         #if now > openwimesh.tstamp_backoff:
-        if self.lock_global_conn == False:
-            if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
-                try:
-                    check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip,recv_node_hw)
-                    #openwimesh.tstamp_last= time.time()
-                    #openwimesh.backoff = 0
-                except Exception as e:
-                    #openwimesh.backoff+=1
-                    #openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
-                    #log.debug("BACKOFF ARP REQ GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
-
-                    log.debug("LOCK GLOBAL CONN=True ; HANDLE ARP REQ - Falha da conexão com global")
-                    self.lock_global_conn=True
-                    check_arp = "fake"
-
-
-                if check_arp != "ok" and check_arp != "fake":
-                    log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
-                    self._drop(event)
-                   # print "matei dst ofctl"
-                    return
-                if check_arp == "fake":
+        if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
+            print "Node IP - %s LISTA Nodes - %s" % (orig_src_ip, self.lista_nodes_zona[ofctl_cid])
+            if orig_src_ip in self.lista_nodes_zona[ofctl_cid]:
+                print "Esta na lista"
+                if ofctl_ip != '192.168.199.254':
                     dst_node_ip_path = ofctl_ip
                     self.fake_sw[orig_src_ip] = dst_node_ip
                     log.debug("%s will take over control %s", dst_node_ip_path,orig_src_ip)
+            else:
+                log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
+                self._drop(event)
+                print "matei dst ofctl"
+                return
+
+        # if ipaddress.ip_address(unicode(dst_node_ip)) in ipaddress.ip_network(unicode('192.168.199.224/27')):
+        #     try:
+        #         if self.lock_global_conn == False:
+        #             check_arp = self.gnet_graph.check_arp_req_to_ofctl(self.net_graph.get_cid_ofctl() ,orig_src_hw,dst_node_ip,recv_node_hw)
+        #         #openwimesh.tstamp_last= time.time()
+        #         #openwimesh.backoff = 0
+        #     except Exception as e:
+        #         #openwimesh.backoff+=1
+        #         #openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
+        #         #log.debug("BACKOFF ARP REQ GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
+
+        #         log.debug("LOCK GLOBAL CONN=True ; HANDLE ARP REQ - Falha da conexão com global")
+        #         self.lock_global_conn=True
+        #         print ("Trava global conn - ativada")
+        #         check_arp = "fake"
+
+        #     if self.lock_global_conn == True:
+        #         check_arp = "fake"
+
+        #     if check_arp != "ok" and check_arp != "fake":
+        #         log.debug("DROP packet to ofctl: sw (%s) is %s ",orig_src_hw ,check_arp)
+        #         self._drop(event)
+        #        # print "matei dst ofctl"
+        #         return
+            
+        #     if check_arp == "fake":
+        #         dst_node_ip_path = ofctl_ip
+        #         self.fake_sw[orig_src_ip] = dst_node_ip
+        #         log.debug("%s will take over control %s", dst_node_ip_path,orig_src_ip)
+
+
 
         recv_node_ip = self.net_graph.get_node_ip(recv_node_hw)
 
         dst_node_hw = self.net_graph.get_by_attr('ip', dst_node_ip)
-       # print "destino e %s - %s" % (dst_node_ip,dst_node_hw)
+        # print "destino e %s - %s" % (dst_node_ip,dst_node_hw)
 
-        
         if not dst_node_hw:
             #dst_node_hw = self.net_graph.get_my_crossdomain_sw(dst_node_ip)
             dst_node_hw = self._get_crossdomain(recv_node_ip,dst_node_ip)
@@ -1188,8 +1235,6 @@ class openwimesh (EventMixin):
             except Exception as e:
                 print "Erro ao add o node: %s" % e
 
-            
-            
             # Debugging code ...
             #log.debug("Added new node: mac=%s - ip=%s" % (orig_src_hw, orig_src_ip))
             if orig_src_ip in self.not_in_graph:
@@ -1434,6 +1479,7 @@ class openwimesh (EventMixin):
                 #openwimesh.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
                 #log.debug("BACKOFF ADD EDGE GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
                 log.debug("LOCK GLOBAL CONN=True ; ERRO SYNC ADD EDGE - %s", e)
+                print ("Trava global conn - ativada")
                 self.lock_global_conn=True
 
     def _async_add_node(self,hw,ip,cid):
@@ -1448,7 +1494,8 @@ class openwimesh (EventMixin):
                 #openwimesh.backoff+=1
                 #.tstamp_backoff = self.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
                 #log.debug("BACKOFF ADD NODE GLOBAL - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
-                log.debug("LOCK GLOBAL CONN=True ; ERRO SYNC ADD NODE - %s", e)   
+                log.debug("LOCK GLOBAL CONN=True ; ERRO SYNC ADD NODE - %s", e) 
+                print ("Trava global conn - ativada")  
                 self.lock_global_conn=True 
         
 
@@ -1483,6 +1530,7 @@ class openwimesh (EventMixin):
             directly_connected = True
 
         attrs['ip'] = event.connection.sock.getpeername()[0]
+                
         # TODO: the bellow code is no more needed
         if sw_hw_addr in self.connecting_nodes:
             # once the node is now connected,
@@ -1505,7 +1553,6 @@ class openwimesh (EventMixin):
             th = Thread(target=self._async_add_node, args=(sw_hw_addr, attrs['ip'], attrs['cid'],))
             th.start()
             
-
             if directly_connected:
                 #ofctl_hw_addr = self.net_graph.get_hw_ofctl()
                 log.debug("INFO: adding edge %s <-> %s", ofctl_hw_addr, sw_hw_addr)
@@ -1517,10 +1564,8 @@ class openwimesh (EventMixin):
                 th1 = Thread(target=self._async_add_edge, args=(ofctl_hw_addr, sw_hw_addr,))
                 th1.start()
 
-            
             #print("Gnet.nodes:",self.gnet_graph.nodes())
             #print(self.gnet_graph.edges())
-
                 
         except Exception as e:
             log.debug("Error conn up (%s)" % e)
@@ -1542,6 +1587,7 @@ class openwimesh (EventMixin):
                     #log.debug("ADD OFCTL GLOBAL - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
                     log.debug("LOCK GLOBAL CONN=True ; Global communication failure (%s)",e)
                     self.lock_global_conn=True
+                    print ("Trava global conn - ativada")
                     print "Global communication failure (%s)" % e
 
         # if self.max_sw_capacity < self.net_graph.number_of_nodes():
@@ -1594,6 +1640,7 @@ class openwimesh (EventMixin):
 
                 log.debug("LOCK GLOBAL CONN=True ; Error remove node from global gnetgraph (%s)" % e)
                 self.lock_global_conn=True
+                print ("Trava global conn - ativada")
 
 
     ########################################################
@@ -1713,12 +1760,16 @@ def _poller_check_conn(ofpox, interval, timeout):
         except Exception as e:
             log.debug("Error removing node from graph (%s): %s" % (n,e))
 
-        try:
-            th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,openwimesh.netgraph.get_cid_ofctl(),))
-            th.start()
-            #print("gn err: %s" % openwimesh.gnetgraph.remove_node(n,openwimesh.netgraph.get_cid_ofctl()))
-        except Exception as e:
-            log.debug("Error removing node from gnetgraph (%s)" % e)
+        if openwimesh.lock_global_conn == False:
+            try:
+                th = Thread(target=openwimesh.gnetgraph.remove_node, args=(n,openwimesh.netgraph.get_cid_ofctl(),))
+                th.start()
+                #print("gn: %s" % openwimesh.gnetgraph.remove_node(n,openwimesh.netgraph.get_cid_ofctl()))
+            except Exception as e:
+                log.debug("Error removing node from gnetgraph (%s)" % e)
+                print ("Trava global conn - ativada")
+                openwimesh.lock_global_conn=True
+                print ("Trava global conn - ativada")
 
 def _poller_check_global_task(ofpox, interval, timeout):
     if not openwimesh.gnetgraph:
@@ -1774,7 +1825,8 @@ def _poller_check_global_task(ofpox, interval, timeout):
             #openwimesh.backoff+=1
             #openwimesh.tstamp_backoff = openwimesh.calc_tstamp_backoff(openwimesh.tstamp_last, openwimesh.backoff)
             log.debug("LOCK GLOBAL CONN=True ; ERROR get new_ofctls_list (%s)",e)
-            self.lock_global_conn=True
+            openwimesh.lock_global_conn=True
+            print ("Trava global conn - ativada")
             #log.debug(" CHECK GLOBAL TASK - ERROR - %s  TSTAMP BACKOFF - %s", openwimesh.backoff, openwimesh.tstamp_backoff)
             
     
